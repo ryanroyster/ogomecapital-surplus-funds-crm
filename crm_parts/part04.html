@@ -1,0 +1,155 @@
+le";
+  if(/sheriff|trustee|foreclosure|mortgage|lender/.test(txt)) return "Foreclosure / verify type";
+  return "Auction / verify type";
+}
+function projectedCushion(c){
+  const value=nval(c.estimatedValue);
+  const bid=nval(c.openingBid);
+  if(value!=null&&bid!=null) return Math.max(0,value-bid);
+  return nval(c.estimatedEquity);
+}
+async function checkREAPIStatus(){
+  const pill=document.getElementById("reapiStatus");
+  if(pill){pill.className="api-status api-offline";pill.textContent="Checking backend…";}
+  try{
+    const r=await fetch("/api/reapi/status",{cache:"no-store"});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||"Backend unavailable");
+    if(j.configured){
+      pill.className="api-status api-online";
+      pill.textContent="RealEstateAPI connected";
+    }else{
+      pill.className="api-status api-error";
+      pill.textContent="API key not configured";
+    }
+    return j;
+  }catch(e){
+    if(pill){pill.className="api-status api-error";pill.textContent="Backend not running";}
+    return {configured:false,error:e.message};
+  }
+}
+async function runAuctionRadar(){
+  const results=document.getElementById("radarResults");
+  const summary=document.getElementById("radarSummary");
+  const states=(document.getElementById("radarStates").value||"").split(",").map(x=>x.trim().toUpperCase()).filter(Boolean);
+  const days=Number(document.getElementById("radarDays").value||90);
+  const minEquity=Number(document.getElementById("radarMinEquity").value||0);
+  const propertyType=document.getElementById("radarPropertyType").value||"";
+  if(results)results.innerHTML='<div class="empty">Scanning RealEstateAPI…</div>';
+  if(summary)summary.textContent="";
+  try{
+    const r=await fetch("/api/reapi/search-auctions",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        states,
+        auctionDateMin:isoDatePlus(0),
+        auctionDateMax:isoDatePlus(days),
+        estimatedEquityMin:minEquity,
+        propertyType,
+        size:50
+      })
+    });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||"Auction search failed");
+    radarLastResults=(j.results||[]).map(c=>({...c,score:auctionRadarScore(c),auctionClass:classifyAuctionRecord(c)}))
+      .sort((a,b)=>(projectedCushion(b)||0)-(projectedCushion(a)||0));
+    if(summary)summary.textContent=`${radarLastResults.length} candidates returned · discovery data only`;
+    renderRadarResults();
+    checkREAPIStatus();
+  }catch(e){
+    if(results)results.innerHTML=`<div class="empty"><strong>Radar unavailable.</strong><br>${esc(e.message)}<br><span class="muted">Run this CRM through the included backend server and add your RealEstateAPI key to .env.</span></div>`;
+    checkREAPIStatus();
+  }
+}
+function renderRadarResults(){
+  const el=document.getElementById("radarResults");
+  if(!el)return;
+  if(!radarLastResults.length){el.innerHTML='<div class="empty">No candidates matched this scan.</div>';return;}
+  el.innerHTML=radarLastResults.map((c,i)=>{
+    const cushion=projectedCushion(c);
+    const owner=c.ownerName||c.owner||"Owner pending";
+    return `<div class="radar-result">
+      <div>
+        <div class="radar-result-title">${esc(owner)}</div>
+        <div class="radar-result-meta">${esc(c.address||"Address pending")} · ${esc(c.county||"")} ${esc(c.state||"")}</div>
+        <span class="source-chip">${esc(c.auctionClass)} · API discovery</span>
+      </div>
+      <div class="radar-metric"><div class="k">Auction</div><div class="v">${esc(c.auctionDate||"Pending")}</div></div>
+      <div class="radar-metric"><div class="k">Opening bid</div><div class="v">${moneyMaybe(nval(c.openingBid))}</div></div>
+      <div class="radar-metric"><div class="k">Projected cushion</div><div class="v">${moneyMaybe(cushion)}</div><div class="radar-result-meta">${c.score}% pre-auction score</div></div>
+      <button class="glass-action" onclick="importRadarCandidate(${i})">Add to research</button>
+    </div>`;
+  }).join("");
+}
+function importRadarCandidate(i){
+  const c=radarLastResults[i]; if(!c)return;
+  const id="reapi-"+String(c.id||[c.state,c.county,c.apn,c.auctionDate].join("-")).replace(/[^a-zA-Z0-9_-]/g,"");
+  if(upcomingAuctions.some(x=>String(x.id)===id)){
+    alert("This candidate is already in Upcoming Auctions.");
+    return;
+  }
+  const cushion=projectedCushion(c);
+  upcomingAuctions.push({
+    id,
+    reapiId:c.id||null,
+    owner:c.ownerName||c.owner||"Owner pending",
+    state:stateName(c.state),
+    county:c.county||"County pending",
+    caseNo:c.caseNumber||c.foreclosureId||"RealEstateAPI discovery",
+    parcel:c.apn||c.parcelAccountNumber||"APN pending",
+    address:c.address||"Address pending",
+    auctionDate:c.auctionDate||isoDatePlus(90),
+    openingBid:nval(c.openingBid),
+    estimatedValue:nval(c.estimatedValue),
+    projectedSurplus:cushion,
+    propertyType:c.propertyType||"Verify",
+    ownershipType:c.corporateOwned?"Corporate / verify":(c.individualOwned?"Individual / API flag":"Verify ownership"),
+    status:"API Discovery",
+    score:c.score,
+    source:"RealEstateAPI Property Search / Property Detail discovery",
+    dataSource:"RealEstateAPI",
+    verificationStatus:"API Discovery — County Verification Required",
+    nextAction:"Verify auction type, parcel, sale date, minimum/opening bid, redemption status, title/vesting and liens against the official county source before treating as qualified.",
+    notes:`Imported from Auction Radar. Classification: ${c.auctionClass}. RealEstateAPI is discovery/enrichment only; this record is not county-verified and projected surplus is not confirmed excess proceeds.`
+  });
+  saveUpcomingAuctions();
+  renderUpcoming();
+  alert("Candidate added to Upcoming Auction Research Queue. County verification is still required.");
+}
+
+const STAGES=["New Lead","County Verified","Recorder Research","Claimant Verified","Call Ready","Contacted","Interested","Attorney Review","Claim Filed","Approved","Paid","Closed / Lost"];
+const CHECKS=["County SOLD","Excess ≥ $30K","Final Report saved","Tax-sale deed","Address verified","Property type verified","Vesting deed","Ownership chain","Liens / judgments","Probate checked","Bankruptcy checked","Pre-sale transfer checked","Competing parties reviewed","Claimant qualified","Contact info verified","Attorney review complete"];
+const seed=[
+["A+","Frederick V. Sparks Jr.","583-810-27-00","8586 Encinitas Way, San Diego, CA 92114",782004.26,"SFR / verify","Individual / verify","County Verified","Obtain 2018 Bell → Sparks vesting deed","Existing priority lead; exact vesting requires Recorder verification."],
+["A+","Dise Leonard L. 1999 Trust","360-150-12-00","4850 Jennifer Court, San Diego, CA 92117",881663.35,"SFR / verify","Trust","County Verified","Obtain trust vesting deed and identify trustee(s)","Existing priority lead."],
+["A+","Myers M. Joyce Trust","283-111-28-00","2111 Toca Lane, Ramona, CA 92065",529849.31,"SFR / verify","Trust","County Verified","Obtain trust vesting deed and trustee chain","Existing priority lead."],
+["A+","Geoffrey Cady et al.","158-190-31-36","",382396.03,"Residential / verify","Multiple / verify","County Verified","Identify all Cady parties from vesting deed","Existing priority lead."],
+["A+","Nguyen Anh et al.","321-080-51-00","0 Vali Hai Rd, Poway, CA 92064",344798.06,"Residential acreage / verify","Multiple / verify","County Verified","Identify complete ownership group","Existing priority lead."],
+["A","Tate Evelyn W Estate","113-060-02-00","",127785.55,"Residential / verify","Estate","County Verified","Obtain vesting deed and estate/probate records","Estate complexity."],
+["A","Moran Justin","521-120-29-00","",56695.13,"SFR / verify","Individual","County Verified","Verify property type and vesting deed",""],
+["B","DelBianco Bruno & Beatrice Trust","399-160-12-00","",53750.76,"Residential / verify","Trust","County Verified","Obtain trust vesting deed",""],
+["B","Chidella Naga R et al.","212-192-01-00","",57526.98,"Residential / verify","Multiple / verify","County Verified","Identify all owners and verify residential type",""],
+["B","Heintschel Charles E. Roth IRA","188-223-23-00","",135002.63,"Residential / verify","IRA","County Verified","Verify property type and IRA ownership structure","May 7102B lead."],
+["B","Heintschel Charles E. Roth IRA","188-223-21-00","",78401.34,"Residential / verify","IRA","County Verified","Verify property type and IRA ownership structure","May 7102B lead."],
+["B","Heintschel Marvin J. Roth IRA","188-223-22-00","",73736.71,"Residential / verify","IRA","County Verified","Verify property type and IRA ownership structure","May 7102B lead."],
+["B","Heintschel Charles E. Roth IRA","188-223-24-00","",60588.07,"Residential / verify","IRA","County Verified","Verify property type and IRA ownership structure","March 7102 lead."],
+["D","Dolores Management LLC","501-243-09-29","",191408.52,"Property type TBD","LLC","County Verified","Verify property type and entity claimant structure",""],
+["D","Agventures Properties LLC","277-150-01-00","",191057.12,"Property type TBD","LLC","County Verified","Verify property type and entity claimant structure",""],
+["D","T&M Urban Group LLC","451-072-22-00","",163633.64,"Property type TBD","LLC","County Verified","Verify property type and entity claimant structure",""],
+["D","Victor M. Hermosillo","646-150-44-06","8580 Avenida de la Fuente, San Diego, CA 92154",682637.54,"Commercial / industrial condo","Individual / verify","County Verified","Verify title/claimant; keep in commercial queue","High-dollar non-residential opportunity."],
+["A+","Olga Ohm","008-522-06","925 Southworth Dr, Reno, NV",137276.44,"Residential / verify","Individual / verify","County Verified","Verify pre-sale vesting, liens, competing interests, and claimant entitlement","Washoe County 2026 tax sale. Official excess exceeds $100K. Deed recorded 05/01/2026; claim deadline generally one year from recording. Nevada priority lead."],
+["A","Timothy B. Murri","004-382-35","2555 Clear Acre Ln, Reno, NV",91420.22,"Condo / residential / verify","Individual / verify","County Verified","Verify pre-sale vesting, liens, competing interests, and claimant entitlement","Washoe County 2026 tax sale. Deed recorded 05/01/2026; claim deadline generally one year from recording. Nevada priority lead."]
+].map((x,i)=>({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+i),priority:x[0],name:x[1],apn:x[2],address:x[3],excess:x[4],propertyType:x[5],ownershipType:x[6],stage:x[7],nextAction:x[8],notes:x[9],contactStatus:"Not contacted",state:["008-522-06","004-382-35"].includes(x[2])?"Nevada":"California",county:["008-522-06","004-382-35"].includes(x[2])?"Washoe County":"San Diego County",source:["008-522-06","004-382-35"].includes(x[2])?"Washoe County Treasurer — 2026 Real Estate Tax Excess Proceeds List":"San Diego County TTC",checks:Object.fromEntries(CHECKS.map(c=>[c,["County SOLD","Excess ≥ $30K"].includes(c)]))}));
+let leads=load();
+function load(){try{const x=JSON.parse(localStorage.getItem('surplusCRM_v1'));return Array.isArray(x)&&x.length?x:seed}catch(e){return seed}}
+function save(){localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));document.getElementById('saveStatus').textContent='Saved '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});renderAll()}
+const fmt=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Number(n)||0);
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+function pclass(p){return p==='A+'?'Aplus':p}
+function renderKPIs(){const total=leads.length,excess=leads.reduce((s,l)=>s+(+l.excess||0),0),ready=leads.filter(l=>l.stage==='Call Ready').length,int=leads.filter(l=>l.stage==='Interested').length,paid=leads.filter(l=>l.stage==='Paid').length;const data=[['Total leads',total,'active records'],['Total excess',fmt(excess),'gross opportunity'],['Call ready',ready,'claimants qualified'],['Interested',int,'active opportunities'],['Paid',paid,'completed recoveries']];document.getElementById('kpiCards').innerHTML=data.map(d=>`<div class="card"><div class="label">${d[0]}</div><div class="value">${d[1]}</div><div class="sub">${d[2]}</div></div>`).join('')}
+function barRows(items){const max=Math.max(1,...items.map(x=>x[1]));return items.map(x=>`<div class="row"><span>${esc(x[0])}</span><div class="barbg"><div class="bar" style="width:${Math.round(x[1]/max*100)}%"></div></div><strong>${x[1]}</strong></div>`).join('')}
+function renderDashboard(){renderKPIs();document.getElementById('pipelineBars').innerHTML=barRows(STAGES.map(s=>[s,leads.filter(l=>l.stage===s).length]));document.getElementById('priorityBars').innerHTML=barRows(['A+','A','B','C','D'].map(p=>[p,leads.filter(l=>l.priority===p).length]));const top=[...leads].sort((a,b)=>((+b.excess||0)*(+b.closingProbability||0))-((+a.excess||0)*(+a.closingProbability||0))).slice(0,10);document.getElementById('workQueue').innerHTML=top.map(l=>`<tr><td><span class="pill ${pclass(l.priority)}">${l.priority}</span></td><td><button class="linkbtn" onclick="openLeadComm('${l.id}')">${esc(l.name)}</button></td><td>${esc(l.apn)}</td><td class="money">${fmt(l.excess)}</td><td><strong>${Math.round(l.closingProbability||0)}%</strong></td><td class="money">${fmt((l.excess||0)*(l.closingProbability||0)/100)}</td><td>${esc(l.stage)}</td><td>${esc(l.nextAction)}</td></tr>`).join('')}
+function renderPipeline(){const k=document.getElementById('kanban');k.innerHTML=STAGES.map(stage=>{const xs=leads.filter(l=>l.stage===stage);return `<div class="col" data-stage="${stage}" ondragover="event.preventDefault()" ondrop="dropLead(event,'${stage.replace(/'/g,"\\'")}')"><div class="colhead"><span>${stage}</span><span>${xs.length}</span></div>${xs.length?xs.map(l=>`<div class="leadcard" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${l.id}')" onclick="openLeadComm('${l.id}')" ondblclick="event.stopPropagation();editLead('${l.id}')"><div class="name">${esc(l.name)}</div><div class="amount">${fmt(l.excess)}</div><div class="meta">${esc(l.apn)}<br>${esc(l.priority)} · ${esc(l.propertyType)}</div><div class="glass-action-wrap" onclick="event.stopPropagation()"><button class="linkbtn glass-action" onclick="openLeadComm('${l.id}')">Message / Call</button><button class="linkbtn glass-action" onclick="editLead('${l.id}')">Edit</button></div></div>`).join(''):'<div class="empty">Drop leads here</div>'}</div>`}).join('')}
+function dropLead(e,stage){const id=e.dataTransfer.getData('text/plain');const l=leads.find(x=>x.id===id);if(l){l.stage=stage;save()}}
+function renderLeads(){const q=document.getElementById('search').value.toLowerCase(),pf=document.getElementById('priorityFilter').value,sf=document.getElementById('stageFilter').value;const xs=leads.filter(l=>(!pf||l.priority===pf)&&(!sf||l.stage===sf)&&(!q||[l.name,l.apn,l.address,l.propertyType,l.ownershipType].join(' ').toLowerCase().i
