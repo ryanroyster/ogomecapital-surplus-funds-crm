@@ -194,15 +194,16 @@ try{
   const savedUpcoming=JSON.parse(localStorage.getItem(UPCOMING_STORAGE_KEY)||"[]");
   if(Array.isArray(savedUpcoming)){
     savedUpcoming.forEach(x=>{
-      if(x && x.id && !upcomingAuctions.some(y=>String(y.id)===String(x.id))) upcomingAuctions.push(x);
+      if(!x || x.id==null)return;
+      const idx=upcomingAuctions.findIndex(y=>String(y.id)===String(x.id));
+      if(idx>=0)upcomingAuctions[idx]=x;
+      else upcomingAuctions.push(x);
     });
   }
 }catch(e){ console.warn("Could not load saved upcoming auction candidates",e); }
 
 function saveUpcomingAuctions(){
-  const manualSeedIds=new Set(["nevadacounty-030190032000","nevadacounty-025200015000","manatee-2025td000222"]);
-  const imported=upcomingAuctions.filter(x=>!manualSeedIds.has(String(x.id)));
-  localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(imported));
+  localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(upcomingAuctions));
   if(typeof cloudReady==='function'&&cloudReady()) cloudSyncUpcoming().catch(e=>setCloudUI(e.message));
 }
 

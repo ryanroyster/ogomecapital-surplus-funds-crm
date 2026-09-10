@@ -53,7 +53,8 @@ window.addEventListener('click',e=>{if(e.target===modal)closeModal();if(e.target
 
 // ---------- Production cloud sync through private backend ----------
 const CLOUD_SESSION_KEY='surplusCRM_cloud_session_v2';
-let cloudSession=JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY)||'null');
+let cloudSession=null;
+try{cloudSession=JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY)||'null')}catch(_){ }
 let cloudBackend={configured:false,provider:'Supabase'};
 
 function cloudReady(){return !!(cloudBackend.configured&&cloudSession?.access_token)}
@@ -129,10 +130,26 @@ function disconnectCloud(){
   localStorage.removeItem(CLOUD_SESSION_KEY);
   setCloudUI(cloudBackend.configured?'Signed out. Local records remain on this device.':'Local mode.');
 }
-async function cloudRequest(path, options={}){
+let cloudRefreshFlight=null;
+async function refreshCloudSession(){
+  if(!cloudRefreshFlight){
+    const session=cloudSession;
+    cloudRefreshFlight=backendAuth('refresh',{refresh_token:session?.refresh_token}).then(d=>{
+      if(cloudSession!==session)throw new Error('Cloud session changed. Please sync again.');
+      cloudSession=d;
+      localStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify(d));
+    }).finally(()=>{cloudRefreshFlight=null});
+  }
+  return cloudRefreshFlight;
+}
+async function cloudRequest(path, options={},retry=true){
   if(!cloudReady()) throw new Error('Sign in to the cloud workspace first.');
   const r=await fetch(path,{...options,headers:{...cloudHeaders(),...(options.headers||{})}});
   if(r.status===401){
+    if(retry&&cloudSession?.refresh_token){
+      await refreshCloudSession();
+      return cloudRequest(path,options,false);
+    }
     disconnectCloud();
     throw new Error('Cloud session expired. Please sign in again.');
   }
@@ -169,20 +186,45 @@ async function syncFromCloud(merge=true){
       if(idx>=0) upcomingAuctions[idx]=x;
       else upcomingAuctions.push(x);
     });
-    localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(u.upcoming));
+    localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(upcomingAuctions));
   }
   renderAll();
   if(document.getElementById('upcoming')?.classList.contains('active')) renderUpcoming();
   setCloudUI('Cloud records downloaded.');
 }
+let upcomingSyncFlight=null, upcomingSyncPending=false;
 async function cloudSyncUpcoming(){
-  if(!cloudReady()) return;
-  const manualSeedIds=new Set(["nevadacounty-030190032000","nevadacounty-025200015000","manatee-2025td000222"]);
-  const imported=upcomingAuctions.filter(x=>!manualSeedIds.has(String(x.id)));
-  await cloudRequest('/api/cloud/upcoming',{
-    method:'PUT',
-    body:JSON.stringify({upcoming:imported})
-  });
+  upcomingSyncPending=true;
+  if(!cloudReady())return;
+  if(upcomingSyncFlight)return upcomingSyncFlight;
+  upcomingSyncFlight=(async()=>{
+    do{
+      upcomingSyncPending=false;
+      const upcoming=[...new Map(upcomingAuctions.map(x=>[String(x.id),x])).values()];
+      localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(upcoming));
+      await cloudRequest('/api/cloud/upcoming',{
+        method:'PUT',body:JSON.stringify({upcoming})
+      });
+    }while(upcomingSyncPending&&cloudReady());
+  })();
+  try{await upcomingSyncFlight}catch(e){upcomingSyncPending=true;throw e}
+  finally{upcomingSyncFlight=null}
+}
+
+async function restoreUpcomingSync(){
+  await checkCloudBackend();
+  if(!cloudReady())return;
+  try{
+    // Upload unsent local changes before a download can replace them.
+    if(upcomingSyncPending)await cloudSyncUpcoming();
+    const u=await cloudRequest('/api/cloud/upcoming');
+    const merged=new Map(upcomingAuctions.map(x=>[String(x.id),x]));
+    (u.upcoming||[]).forEach(x=>merged.set(String(x.id),x));
+    upcomingAuctions.splice(0,upcomingAuctions.length,...merged.values());
+    await cloudSyncUpcoming();
+    if(document.getElementById('upcoming')?.classList.contains('active'))renderUpcoming();
+    setCloudUI('Upcoming auction records synchronized.');
+  }catch(e){setCloudUI(e.message)}
 }
 async function syncNow(){
   if(!cloudBackend.configured){
@@ -215,7 +257,11 @@ loginCloudBtn.onclick=cloudSignIn;
 signupCloudBtn.onclick=cloudSignUp;
 disconnectCloudBtn.onclick=disconnectCloud;
 window.addEventListener('click',e=>{if(e.target===cloudModal)cloudModal.classList.remove('open')});
-checkCloudBackend();
+restoreUpcomingSync();
+window.addEventListener('online',restoreUpcomingSync);
+setInterval(()=>{
+  if(upcomingSyncPending&&cloudReady())cloudSyncUpcoming().catch(e=>setCloudUI(e.message));
+},30000);
 
 save=function(){
   localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));

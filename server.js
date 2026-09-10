@@ -90,6 +90,21 @@ async function dbReplace(table,userId,items){
   await fetchJson(cfg.supabaseUrl()+`/rest/v1/${table}`,{method:"POST",headers:serviceHeaders({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)});
 }
 
+async function dbMergeUpcoming(userId,items){
+  if(!Array.isArray(items)||items.some(item=>!item||typeof item!=="object"||Array.isArray(item)||!["string","number"].includes(typeof item.id)||!String(item.id).trim())){
+    const e=new Error("Upcoming records must be an array with stable record IDs.");e.status=400;throw e;
+  }
+  const unique=[...new Map(items.map(item=>[String(item.id),item])).values()];
+  if(!unique.length)return 0;
+  const now=new Date().toISOString();
+  const rows=unique.map(item=>({user_id:userId,record_id:String(item.id),payload:item,updated_at:now}));
+  // One atomic upsert: never delete existing records during synchronization.
+  await fetchJson(cfg.supabaseUrl()+"/rest/v1/crm_upcoming?on_conflict=user_id,record_id",{
+    method:"POST",headers:serviceHeaders({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)
+  });
+  return unique.length;
+}
+
 function cleanState(v){return String(v||"").trim().toUpperCase().slice(0,2)}
 async function reapi(pathname,body){
   if(!cfg.reapiKey()){const e=new Error("REALESTATEAPI_KEY is not configured.");e.status=503;throw e}
@@ -120,10 +135,16 @@ const server=http.createServer(async(req,res)=>{
       const b=await readBody(req),d=await supabaseAuth("signup",{email:String(b.email||""),password:String(b.password||"")});
       return json(res,200,d);
     }
+    if(req.method==="POST"&&u.pathname==="/api/auth/refresh"){
+      const b=await readBody(req);
+      if(typeof b.refresh_token!=="string"||!b.refresh_token)return json(res,400,{error:"Refresh token required."});
+      const d=await supabaseAuth("token?grant_type=refresh_token",{refresh_token:b.refresh_token});
+      return json(res,200,{access_token:d.access_token,refresh_token:d.refresh_token,expires_in:d.expires_in,user:d.user});
+    }
     if(req.method==="GET"&&u.pathname==="/api/cloud/leads"){const user=await requireUser(req);return json(res,200,{leads:await dbGet("crm_leads",user.id)})}
     if(req.method==="PUT"&&u.pathname==="/api/cloud/leads"){const user=await requireUser(req),b=await readBody(req),items=Array.isArray(b.leads)?b.leads:[];await dbReplace("crm_leads",user.id,items);return json(res,200,{ok:true,count:items.length})}
     if(req.method==="GET"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req);return json(res,200,{upcoming:await dbGet("crm_upcoming",user.id)})}
-    if(req.method==="PUT"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req),b=await readBody(req),items=Array.isArray(b.upcoming)?b.upcoming:[];await dbReplace("crm_upcoming",user.id,items);return json(res,200,{ok:true,count:items.length})}
+    if(req.method==="PUT"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req),b=await readBody(req);const count=await dbMergeUpcoming(user.id,b.upcoming);return json(res,200,{ok:true,count})}
 
     if(req.method==="GET"&&u.pathname==="/api/reapi/status")return json(res,200,{ok:true,configured:!!cfg.reapiKey(),provider:"RealEstateAPI",keyExposedToBrowser:false,purpose:"upcoming-auction-discovery-only"});
     if(req.method==="POST"&&u.pathname==="/api/reapi/property-detail"){
