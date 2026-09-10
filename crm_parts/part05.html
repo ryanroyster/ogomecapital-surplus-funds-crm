@@ -1,0 +1,232 @@
+ncludes(q)));document.getElementById('leadRows').innerHTML=xs.map(l=>`<tr><td><span class="pill ${pclass(l.priority)}">${l.priority}</span></td><td><button class="linkbtn" onclick="openLeadComm('${l.id}')">${esc(l.name)}</button></td><td>${esc(l.apn)}</td><td>${esc(l.address)}</td><td class="money">${fmt(l.excess)}</td><td>${esc(l.propertyType)}</td><td>${esc(l.ownershipType)}</td><td>${esc(l.stage)}</td><td>${l.checks?.['Claimant qualified']?'Yes':'No'}</td><td>${esc(l.nextAction)}</td><td><div class="glass-action-wrap" style="display:inline-flex;margin-top:0"><button class="linkbtn glass-action" onclick="openLeadComm('${l.id}')">Message / Call</button><button class="linkbtn glass-action" onclick="editLead('${l.id}')">Edit</button></div></td></tr>`).join('')}
+
+function renderCommunications(){
+  const phoneCount=leads.filter(l=>String(l.phone||'').trim()).length;
+  const smsCount=leads.reduce((n,l)=>n+(l.commLog||[]).filter(x=>x.type==='SMS launched'||x.type==='Outbound SMS').length,0);
+  const callCount=leads.reduce((n,l)=>n+(l.commLog||[]).filter(x=>x.type==='Call launched').length,0);
+  const drafts=leads.filter(l=>String(l.smsDraft||'').trim()).length;
+  const ready=leads.filter(l=>l.stage==='Call Ready').length;
+  const put=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+  put('commKpiPhones',phoneCount);put('commKpiSms',smsCount);put('commKpiCalls',callCount);put('commKpiDrafts',drafts);put('commKpiReady',ready);
+
+  const queue=document.getElementById('commOutreachQueue');
+  if(queue){
+    const xs=[...leads].sort((a,b)=>{
+      const ar=a.stage==='Call Ready'?1:0, br=b.stage==='Call Ready'?1:0;
+      return br-ar || ((+b.excess||0)*(+b.closingProbability||0))-((+a.excess||0)*(+a.closingProbability||0));
+    }).slice(0,30);
+    queue.innerHTML=xs.map(l=>`<div class="glass-message-row" onclick="openLeadComm('${l.id}')" style="cursor:pointer">
+      <div style="display:flex;justify-content:space-between;gap:10px">
+        <strong>${esc(l.name)}</strong><span class="pill ${pclass(l.priority)}">${esc(l.priority)}</span>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:5px">${esc(l.stage)} · ${fmt(l.excess)} · ${esc(l.county||'')}${l.county&&l.state?', ':''}${esc(l.state||'')}</div>
+      <div class="glass-action-wrap" style="display:inline-flex"><button class="linkbtn glass-action" onclick="event.stopPropagation();openLeadComm('${l.id}')">Open messaging</button></div>
+    </div>`).join('');
+  }
+
+  const activity=[];
+  leads.forEach(l=>(l.commLog||[]).forEach(x=>activity.push({...x,lead:l.name})));
+  activity.sort((a,b)=>new Date(b.at)-new Date(a.at));
+  const recent=document.getElementById('commRecentActivity');
+  if(recent){
+    recent.innerHTML=activity.length?activity.slice(0,20).map(x=>`<div class="glass-message-row">
+      <strong>${esc(x.lead)} — ${esc(x.type)}</strong>
+      <div class="muted" style="font-size:12px">${esc(new Date(x.at).toLocaleString())}</div>
+      <div style="font-size:12px;margin-top:4px">${esc(x.detail||'')}</div>
+    </div>`).join(''):'<div class="muted">No communication activity logged yet.</div>';
+  }
+}
+
+function renderAll(){renderDashboard();renderPipeline();renderLeads();renderCommunications()}
+function openModal(l){document.getElementById('modal').classList.add('open');document.getElementById('modalTitle').textContent=l?'Edit lead':'Add lead';document.getElementById('leadId').value=l?.id||'';['priority','stage','state','county','name','apn','address','excess','closingProbability','propertyType','ownershipType','contactStatus','nextAction','notes'].forEach(id=>{const el=document.getElementById(id);el.value=l?.[id]??(id==='priority'?'A':id==='stage'?'New Lead':id==='contactStatus'?'Not contacted':'')});document.getElementById('checks').innerHTML=CHECKS.map(c=>`<label class="check"><input type="checkbox" data-check="${esc(c)}" ${l?.checks?.[c]?'checked':''}> ${esc(c)}</label>`).join('');document.getElementById('deleteBtn').style.visibility=l?'visible':'hidden'}
+function editLead(id){openModal(leads.find(l=>l.id===id))}
+window.editLead=editLead;window.dropLead=dropLead;
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+document.getElementById('leadForm').onsubmit=e=>{e.preventDefault();const id=document.getElementById('leadId').value;const obj={id:id||((crypto.randomUUID&&crypto.randomUUID())||String(Date.now())),priority:priority.value,stage:stage.value,state:state.value,county:county.value.trim(),name:name.value.trim(),apn:apn.value.trim(),address:address.value.trim(),excess:+excess.value||0,closingProbability:+closingProbability.value||0,propertyType:propertyType.value.trim(),ownershipType:ownershipType.value.trim(),contactStatus:contactStatus.value,nextAction:nextAction.value.trim(),notes:notes.value.trim(),checks:{}};document.querySelectorAll('[data-check]').forEach(x=>obj.checks[x.dataset.check]=x.checked);if(!obj.closingProbability)obj.closingProbability=modelClosingProbability(obj);obj.priority=gradeFromProbability(obj.closingProbability);obj.expectedOpportunityValue=Math.round(obj.excess*obj.closingProbability/100);if(id){leads[leads.findIndex(l=>l.id===id)]=obj}else leads.unshift(obj);closeModal();save()};
+document.getElementById('deleteBtn').onclick=()=>{const id=leadId.value;if(id&&confirm('Delete this lead?')){leads=leads.filter(l=>l.id!==id);closeModal();save()}};document.getElementById('cancelBtn').onclick=closeModal;document.getElementById('addLeadBtn').onclick=()=>openModal(null);
+for(const s of STAGES){stage.add(new Option(s,s));stageFilter.add(new Option(s,s))}
+search.oninput=renderLeads;priorityFilter.onchange=renderLeads;stageFilter.onchange=renderLeads;
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.view).classList.add('active');const map={dashboard:['Command Center','Surplus-funds lead operations and claimant verification.'],pipeline:['Pipeline','Click any lead to open messaging and calling tools; drag and drop to update stage.'],communications:['Communications','Call, text, draft messages, and review outreach activity by lead.'],leads:['Lead Database','Search, filter, edit and qualify every opportunity.'],states:['State Workspaces','Separate lead pipelines and compliance notes by state.'],upcoming:['Upcoming Auctions','Pre-sale intelligence for properties likely to generate meaningful surplus.']};pageTitle.textContent=map[b.dataset.view][0];pageSub.textContent=map[b.dataset.view][1];if(b.dataset.view==='upcoming'){renderUpcoming();checkREAPIStatus();}if(b.dataset.view==='communications')renderCommunications();});
+exportBtn.onclick=()=>download('surplus-crm-backup.json',JSON.stringify(leads,null,2),'application/json');csvBtn.onclick=()=>{const cols=['priority','closingProbability','expectedOpportunityValue','state','county','name','apn','address','excess','propertyType','ownershipType','stage','contactStatus','nextAction','notes'];const q=v=>'"'+String(v??'').replaceAll('"','""')+'"';download('surplus-crm-leads.csv',[cols.join(','),...leads.map(l=>cols.map(c=>q(l[c])).join(','))].join('\n'),'text/csv')};function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+importFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d))throw 0;leads=d;save();alert('CRM backup imported.')}catch{alert('That JSON file is not a valid CRM backup.')}};r.readAsText(f)};
+window.addEventListener('click',e=>{if(e.target===modal)closeModal();if(e.target===document.getElementById('leadCommModal'))closeLeadComm()});
+
+// ---------- Production cloud sync through private backend ----------
+const CLOUD_SESSION_KEY='surplusCRM_cloud_session_v2';
+let cloudSession=JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY)||'null');
+let cloudBackend={configured:false,provider:'Supabase'};
+
+function cloudReady(){return !!(cloudBackend.configured&&cloudSession?.access_token)}
+function cloudHeaders(){
+  return {
+    'Content-Type':'application/json',
+    'Authorization':'Bearer '+(cloudSession?.access_token||'')
+  };
+}
+function setCloudUI(msg){
+  const state=document.getElementById('cloudState'), dot=document.getElementById('cloudDot'), cm=document.getElementById('cloudMessage');
+  if(state) state.textContent=cloudReady()?'Cloud connected':(cloudBackend.configured?'Cloud ready':'Local mode');
+  if(dot) dot.style.background=cloudReady()?'var(--green)':(cloudBackend.configured?'var(--blue)':'var(--amber)');
+  if(cm&&msg) cm.textContent=msg;
+}
+async function checkCloudBackend(){
+  try{
+    const r=await fetch('/api/cloud/status',{cache:'no-store'});
+    const d=await r.json();
+    cloudBackend=d;
+    if(!d.configured){
+      setCloudUI('Cloud backend is installed but Supabase has not been configured on the server yet.');
+      return d;
+    }
+    setCloudUI(cloudReady()?'Signed in and ready to synchronize.':'Cloud backend is ready. Sign in to this workspace.');
+    return d;
+  }catch(e){
+    cloudBackend={configured:false,provider:'Supabase'};
+    setCloudUI('Cloud backend is not reachable. Local CRM data is still available on this device.');
+    return cloudBackend;
+  }
+}
+async function backendAuth(endpoint, body){
+  const r=await fetch('/api/auth/'+endpoint,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error||'Authentication failed');
+  return d;
+}
+async function cloudSignIn(){
+  try{
+    cloudMessage.textContent='Signing in…';
+    const d=await backendAuth('login',{email:sbEmail.value.trim(),password:sbPassword.value});
+    cloudSession=d;
+    localStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify(d));
+    setCloudUI('Signed in. Downloading cloud records…');
+    await syncFromCloud(true);
+    await syncToCloud();
+    await cloudSyncUpcoming();
+    setCloudUI('Cloud connected and synchronized.');
+  }catch(e){setCloudUI(e.message)}
+}
+async function cloudSignUp(){
+  try{
+    cloudMessage.textContent='Creating account…';
+    const d=await backendAuth('signup',{email:sbEmail.value.trim(),password:sbPassword.value});
+    if(d.access_token){
+      cloudSession=d;
+      localStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify(d));
+      await syncToCloud();
+      await cloudSyncUpcoming();
+      setCloudUI('Account created and cloud connected.');
+    }else{
+      setCloudUI(d.message||'Account created. Confirm your email if required, then sign in.');
+    }
+  }catch(e){setCloudUI(e.message)}
+}
+function disconnectCloud(){
+  cloudSession=null;
+  localStorage.removeItem(CLOUD_SESSION_KEY);
+  setCloudUI(cloudBackend.configured?'Signed out. Local records remain on this device.':'Local mode.');
+}
+async function cloudRequest(path, options={}){
+  if(!cloudReady()) throw new Error('Sign in to the cloud workspace first.');
+  const r=await fetch(path,{...options,headers:{...cloudHeaders(),...(options.headers||{})}});
+  if(r.status===401){
+    disconnectCloud();
+    throw new Error('Cloud session expired. Please sign in again.');
+  }
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error||'Cloud request failed');
+  return d;
+}
+async function syncToCloud(){
+  if(!cloudReady()) return;
+  setCloudUI('Uploading lead changes…');
+  await cloudRequest('/api/cloud/leads',{
+    method:'PUT',
+    body:JSON.stringify({leads})
+  });
+  setCloudUI('Lead records synchronized.');
+}
+async function syncFromCloud(merge=true){
+  if(!cloudReady()) return;
+  setCloudUI('Downloading cloud records…');
+  const d=await cloudRequest('/api/cloud/leads');
+  const remote=Array.isArray(d.leads)?d.leads:[];
+  if(remote.length){
+    if(merge){
+      const map=new Map(leads.map(l=>[String(l.id),l]));
+      remote.forEach(l=>map.set(String(l.id),l));
+      leads=[...map.values()];
+    }else leads=remote;
+    localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+  }
+  const u=await cloudRequest('/api/cloud/upcoming');
+  if(Array.isArray(u.upcoming)&&u.upcoming.length){
+    u.upcoming.forEach(x=>{
+      const idx=upcomingAuctions.findIndex(y=>String(y.id)===String(x.id));
+      if(idx>=0) upcomingAuctions[idx]=x;
+      else upcomingAuctions.push(x);
+    });
+    localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(u.upcoming));
+  }
+  renderAll();
+  if(document.getElementById('upcoming')?.classList.contains('active')) renderUpcoming();
+  setCloudUI('Cloud records downloaded.');
+}
+async function cloudSyncUpcoming(){
+  if(!cloudReady()) return;
+  const manualSeedIds=new Set(["nevadacounty-030190032000","nevadacounty-025200015000","manatee-2025td000222"]);
+  const imported=upcomingAuctions.filter(x=>!manualSeedIds.has(String(x.id)));
+  await cloudRequest('/api/cloud/upcoming',{
+    method:'PUT',
+    body:JSON.stringify({upcoming:imported})
+  });
+}
+async function syncNow(){
+  if(!cloudBackend.configured){
+    await checkCloudBackend();
+    openCloudModal();
+    return;
+  }
+  if(!cloudReady()){
+    openCloudModal();
+    setCloudUI('Cloud backend is ready. Sign in to synchronize.');
+    return;
+  }
+  try{
+    await syncFromCloud(true);
+    await syncToCloud();
+    await cloudSyncUpcoming();
+    setCloudUI('Cloud synchronized.');
+  }catch(e){setCloudUI(e.message)}
+}
+async function openCloudModal(){
+  cloudModal.classList.add('open');
+  sbEmail.value='';
+  sbPassword.value='';
+  await checkCloudBackend();
+}
+cloudBtn.onclick=openCloudModal;
+syncBtn.onclick=syncNow;
+closeCloudBtn.onclick=()=>cloudModal.classList.remove('open');
+loginCloudBtn.onclick=cloudSignIn;
+signupCloudBtn.onclick=cloudSignUp;
+disconnectCloudBtn.onclick=disconnectCloud;
+window.addEventListener('click',e=>{if(e.target===cloudModal)cloudModal.classList.remove('open')});
+checkCloudBackend();
+
+save=function(){
+  localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+  const s=document.getElementById('saveStatus');
+  if(s) s.textContent='Saved '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  renderAll();
+  if(cloudReady()) syncToCloud().catch(e=>setCloudUI(e.message));
+};
+
+
+// v2 data migration: safely add newly verified research records without duplicating existing leads.
+(function migrateResearchLeadsV2(){
+  const additions=[
+    {priority:"A+",name:"Olga Ohm",apn:"008-522-06",address:"925 Southworth Dr, Reno, NV",excess:137276.44,propertyType:"Residential / verify",ownershipType:"Individual / verify",stage:"County Verified",nextAction:"Verify pre-sale vesting, liens, competing interests, and claimant entitlement",notes:"Washoe County 2026 tax sale. Official excess exceeds $100K. Deed recorded 05/01/2026; claim deadline generally one year from recording. Nevada priority lead.",
