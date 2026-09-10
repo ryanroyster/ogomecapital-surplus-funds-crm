@@ -1,14 +1,36 @@
-alification rule:</strong><br>$50,000+ official excess only. County-confirmed does not equal claimant-qualified or call-ready.</div>`;
+alification rule:</strong><br>$30,000+ official excess only. County-confirmed does not equal claimant-qualified or call-ready.</div>`;
  stateLeadsTitle.textContent=activeState+" Leads";
  stateLeadsBody.innerHTML=rows.length?rows.slice().sort((a,b)=>(Number(b.excess||0)*Number(b.closingProbability||0))-(Number(a.excess||0)*Number(a.closingProbability||0))).map(l=>`<tr>
  <td>${l.priority||""}</td><td><strong>${esc(l.name||"")}</strong></td><td>${esc(l.county||"")}</td><td>${esc(l.apn||"")}</td>
  <td class="money">${stateMoney(l.excess)}</td><td><strong>${Math.round(l.closingProbability||0)}%</strong></td><td class="money">${stateMoney((l.excess||0)*(l.closingProbability||0)/100)}</td><td>${esc(l.stage||"")}</td><td>${esc(l.nextAction||"")}</td>
- <td><button class="linkbtn" onclick="openEdit('${l.id}')">Open</button></td></tr>`).join('')
+ <td><button class="linkbtn" onclick="editLead('${l.id}')">Open</button></td></tr>`).join('')
  :`<tr><td colspan="10"><div class="empty">No qualified leads in ${activeState} yet.</div></td></tr>`;
 }
+
+// v25 preservation guard: collapse duplicate seed/cloud records without changing the approved UI.
+(function dedupePreservedLeads(){
+ const seen=new Map(), out=[];
+ for(const l of leads){
+   const apn=String(l.apn||'').trim().toLowerCase();
+   const key=(apn && !apn.startsWith('pending'))
+     ? `${String(l.state||'').toLowerCase()}|${apn}`
+     : `${String(l.state||'').toLowerCase()}|${String(l.name||'').toLowerCase()}|${Number(l.excess||0).toFixed(2)}`;
+   if(!seen.has(key)){seen.set(key,l);out.push(l);continue;}
+   const keep=seen.get(key);
+   // Preserve whichever duplicate has the richer operational state.
+   if((l.commLog||[]).length>(keep.commLog||[]).length) keep.commLog=l.commLog;
+   if(l.phone&&!keep.phone) keep.phone=l.phone;
+   if(l.smsDraft&&!keep.smsDraft) keep.smsDraft=l.smsDraft;
+   if(l.contactStatus&&l.contactStatus!=='Not contacted') keep.contactStatus=l.contactStatus;
+   if(l.stage&&l.stage!=='County Verified') keep.stage=l.stage;
+   if(l.notes&&String(l.notes).length>String(keep.notes||'').length) keep.notes=l.notes;
+   if(l.checks) keep.checks={...(keep.checks||{}),...l.checks};
+ }
+ if(out.length!==leads.length){leads=out;localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));}
+})();
+
 const oldRenderAll=renderAll;
 renderAll=function(){oldRenderAll();renderStateWorkspace()}
-
 
 renderAll();
 </script>
