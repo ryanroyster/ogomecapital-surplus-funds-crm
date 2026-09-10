@@ -6,6 +6,7 @@ const { URL } = require("url");
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 8787);
 const REAPI_BASE = "https://api.realestateapi.com";
+const CRM_PARTS = Array.from({length:8},(_,i)=>path.join(ROOT,"crm_parts",`part${String(i+1).padStart(2,"0")}.html`));
 
 function loadEnvFile() {
   const envPath = path.join(ROOT, ".env");
@@ -31,14 +32,27 @@ function json(res,status,payload){
   res.writeHead(status,{"Content-Type":"application/json; charset=utf-8","Content-Length":Buffer.byteLength(body),"Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer"});
   res.end(body);
 }
+function sendHtml(res,body){
+  res.writeHead(200,{"Content-Type":"text/html; charset=utf-8","Content-Length":Buffer.byteLength(body),"Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Referrer-Policy":"same-origin"});
+  res.end(body);
+}
+function sendPreservedCRM(res){
+  try{
+    for(const p of CRM_PARTS) if(!fs.existsSync(p)) throw new Error(`Missing CRM asset: ${path.basename(p)}`);
+    return sendHtml(res,CRM_PARTS.map(p=>fs.readFileSync(p,"utf8")).join(""));
+  }catch(e){
+    console.error("CRM frontend assembly failed:",e.message);
+    return json(res,500,{error:"CRM frontend assembly failed"});
+  }
+}
 function sendFile(res,filePath){
   const ext=path.extname(filePath).toLowerCase(),types={".html":"text/html; charset=utf-8",".js":"application/javascript; charset=utf-8",".css":"text/css; charset=utf-8",".json":"application/json; charset=utf-8",".txt":"text/plain; charset=utf-8",".md":"text/markdown; charset=utf-8",".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",".svg":"image/svg+xml",".ico":"image/x-icon"};
   fs.readFile(filePath,(err,data)=>{if(err)return json(res,404,{error:"File not found"});res.writeHead(200,{"Content-Type":types[ext]||"application/octet-stream","X-Content-Type-Options":"nosniff"});res.end(data)});
 }
 function safeStaticPath(urlPath){
   let decoded;try{decoded=decodeURIComponent(urlPath)}catch{return null}
-  const rel=decoded==="/"?"index.html":decoded.replace(/^\/+/ ,""),full=path.resolve(ROOT,rel);
-  if(!full.startsWith(path.resolve(ROOT)+path.sep)&&full!==path.join(ROOT,"index.html"))return null;
+  const rel=decoded.replace(/^\/+/ ,""),full=path.resolve(ROOT,rel);
+  if(!full.startsWith(path.resolve(ROOT)+path.sep))return null;
   return full;
 }
 async function readBody(req){
@@ -95,7 +109,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const u=new URL(req.url,`http://${req.headers.host||"localhost"}`);
 
-    if(req.method==="GET"&&u.pathname==="/api/health")return json(res,200,{ok:true,service:"Surplus Funds CRM v24",cloudConfigured:supabaseConfigured(),realEstateApiConfigured:!!cfg.reapiKey()});
+    if(req.method==="GET"&&u.pathname==="/api/health")return json(res,200,{ok:true,service:"Ogome Capital Surplus Funds CRM v25",frontend:"preserved-v24-ui",cloudConfigured:supabaseConfigured(),realEstateApiConfigured:!!cfg.reapiKey()});
     if(req.method==="GET"&&u.pathname==="/api/cloud/status")return json(res,200,{ok:true,provider:"Supabase",configured:supabaseConfigured(),architecture:"server-mediated",serviceRoleExposedToBrowser:false});
 
     if(req.method==="POST"&&u.pathname==="/api/auth/login"){
@@ -111,7 +125,7 @@ const server=http.createServer(async(req,res)=>{
     if(req.method==="GET"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req);return json(res,200,{upcoming:await dbGet("crm_upcoming",user.id)})}
     if(req.method==="PUT"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req),b=await readBody(req),items=Array.isArray(b.upcoming)?b.upcoming:[];await dbReplace("crm_upcoming",user.id,items);return json(res,200,{ok:true,count:items.length})}
 
-    if(req.method==="GET"&&u.pathname==="/api/reapi/status")return json(res,200,{ok:true,configured:!!cfg.reapiKey(),provider:"RealEstateAPI",keyExposedToBrowser:false});
+    if(req.method==="GET"&&u.pathname==="/api/reapi/status")return json(res,200,{ok:true,configured:!!cfg.reapiKey(),provider:"RealEstateAPI",keyExposedToBrowser:false,purpose:"upcoming-auction-discovery-only"});
     if(req.method==="POST"&&u.pathname==="/api/reapi/property-detail"){
       const b=await readBody(req),input={};if(b.id)input.id=String(b.id);else if(b.address)input.address=String(b.address);else if(b.apn){input.apn=String(b.apn);if(b.state)input.state=cleanState(b.state);if(b.county)input.county=String(b.county)}else return json(res,400,{error:"Provide id, address, or apn."});
       return json(res,200,{result:normalize(detailObject(await reapi("/v2/PropertyDetail",input)))});
@@ -127,10 +141,11 @@ const server=http.createServer(async(req,res)=>{
       return json(res,200,{provider:"RealEstateAPI",verification:"Discovery only — verify against official county source",count:unique.length,results:unique});
     }
 
+    if(req.method==="GET"&&(u.pathname==="/"||u.pathname==="/index.html"))return sendPreservedCRM(res);
     if(req.method==="GET"){const file=safeStaticPath(u.pathname);if(!file)return json(res,403,{error:"Forbidden"});if(fs.existsSync(file)&&fs.statSync(file).isDirectory())return sendFile(res,path.join(file,"index.html"));return sendFile(res,file)}
     return json(res,404,{error:"Not found"});
   }catch(e){console.error(e);return json(res,e.status||500,{error:e.message||"Server error"})}
 });
 
 server.on("error",e=>{console.error("CRM server error:",e.message);process.exit(1)});
-server.listen(PORT,"0.0.0.0",()=>{console.log(`Surplus Funds CRM v24 listening on ${PORT}`);console.log(`Cloud configured: ${supabaseConfigured()?"YES":"NO"}`);console.log(`RealEstateAPI configured: ${cfg.reapiKey()?"YES":"NO"}`)});
+server.listen(PORT,"0.0.0.0",()=>{console.log(`Ogome Capital CRM v25 listening on ${PORT}`);console.log(`Frontend: preserved v24 UI assembled from ${CRM_PARTS.length} parts`);console.log(`Cloud configured: ${supabaseConfigured()?"YES":"NO"}`);console.log(`RealEstateAPI configured: ${cfg.reapiKey()?"YES":"NO"}`)});
