@@ -1,0 +1,243 @@
+iv:first-child{grid-column:1/-1}}
+@media(max-width:560px){.radar-grid{grid-template-columns:1fr}.radar-result{grid-template-columns:1fr}}
+</style>
+
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+  <div class="brand">Surplus<span>CRM</span></div>
+  <nav class="nav">
+    <button class="active" data-view="dashboard">▦ Dashboard</button>
+    <button data-view="pipeline">▤ Pipeline</button>
+    <button data-view="communications">✆ Communications</button>
+    <button data-view="leads">⌕ Leads</button><button data-view="states">◫ States</button>
+<button data-view="upcoming">◷ Upcoming Auctions</button>
+  </nav>
+  <div class="small"><span class="dot" id="cloudDot" style="display:inline-block;margin-right:6px"></span><span id="cloudState">Local mode</span><br>Local-first CRM with optional secure cloud sync.</div>
+</aside>
+<main class="main">
+  <div class="topbar">
+    <div class="title"><h1 id="pageTitle">Command Center</h1><p id="pageSub">Surplus-funds lead operations and claimant verification.</p></div>
+    <div class="actions"><button class="btn" id="cloudBtn">☁ Cloud workspace</button><button class="btn" id="syncBtn">↻ Sync now</button><button class="btn" id="exportBtn">Export JSON</button><button class="btn" id="csvBtn">Export CSV</button><label class="btn" for="importFile">Import JSON</label><input id="importFile" type="file" accept="application/json" hidden><button class="btn primary" id="addLeadBtn">+ Add lead</button></div>
+  </div>
+
+  <section id="dashboard" class="view active">
+    <div class="cards" id="kpiCards"></div>
+    <div class="grid2">
+      <div class="panel"><h2>Pipeline</h2><div id="pipelineBars" class="pipeline-bars"></div></div>
+      <div class="panel"><h2>Priority mix</h2><div id="priorityBars" class="pipeline-bars"></div></div>
+    </div>
+    <div class="panel workq" style="margin-top:14px"><h2>Top priority work queue</h2><div class="tablewrap"><table><thead><tr><th>Grade</th><th>Lead</th><th>APN</th><th>Excess</th><th>Close %</th><th>Expected value</th><th>Stage</th><th>Next action</th></tr></thead><tbody id="workQueue"></tbody></table></div></div>
+  </section>
+
+
+  <section id="communications" class="view">
+    <div class="cards">
+      <div class="card"><div class="label">Leads with phone</div><div class="value" id="commKpiPhones">0</div><div class="sub">numbers saved</div></div>
+      <div class="card"><div class="label">SMS activity</div><div class="value" id="commKpiSms">0</div><div class="sub">messages launched</div></div>
+      <div class="card"><div class="label">Call activity</div><div class="value" id="commKpiCalls">0</div><div class="sub">calls launched</div></div>
+      <div class="card"><div class="label">Saved drafts</div><div class="value" id="commKpiDrafts">0</div><div class="sub">SMS drafts</div></div>
+      <div class="card"><div class="label">Call Ready</div><div class="value" id="commKpiReady">0</div><div class="sub">priority outreach</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel glass-panel">
+        <h2>Outreach Queue</h2>
+        <div class="muted" style="font-size:12px;margin-bottom:10px">Click a lead to open its details, phone number, call controls, SMS composer, and communication log.</div>
+        <div id="commOutreachQueue"></div>
+      </div>
+      <div class="panel glass-panel">
+        <h2>Recent Activity</h2>
+        <div id="commRecentActivity" class="muted">No communication activity logged yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pipeline" class="view"><div class="kanban" id="kanban"></div></section>
+
+  <section id="leads" class="view">
+    <div class="toolbar"><input id="search" placeholder="Search lead, APN, address…"><select id="priorityFilter"><option value="">All priorities</option><option>A+</option><option>A</option><option>B</option><option>C</option><option>D</option></select><select id="stageFilter"><option value="">All stages</option></select><span class="statusline"><span class="dot"></span><span id="saveStatus">Saved locally</span></span></div>
+    <div class="tablewrap"><table class="leads-table"><thead><tr><th>Priority</th><th>Lead</th><th>APN</th><th>Address</th><th>Excess</th><th>Property</th><th>Ownership</th><th>Stage</th><th>Qualified</th><th>Next action</th><th></th></tr></thead><tbody id="leadRows"></tbody></table></div>
+  </section>
+
+
+  <section class="view" id="states">
+  <div class="state-tabs" id="stateTabs"></div>
+  <div class="cards" id="stateCards"></div>
+  <div class="grid2">
+    <div class="panel"><h2 id="statePipelineTitle">State Pipeline</h2><div class="pipeline-bars" id="statePipeline"></div></div>
+    <div class="panel"><h2>Market Rules & Operating Notes</h2><div id="stateRules" style="font-size:12px;line-height:1.6;color:var(--muted)"></div></div>
+  </div>
+  <div class="panel workq" style="margin-top:14px">
+    <h2 id="stateLeadsTitle">State Leads</h2>
+    <div class="tablewrap"><table class="leads-table">
+      <thead><tr><th>Priority</th><th>Lead</th><th>County</th><th>APN / Parcel</th><th>Excess</th><th>Stage</th><th>Next Action</th><th></th></tr></thead>
+      <tbody id="stateLeadsBody"></tbody>
+    </table></div>
+  </div>
+  </section>
+
+  <section id="upcoming" class="view">
+    <div class="cards" id="auctionKpis"></div>
+
+    <div class="panel glass-panel" style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap">
+        <div>
+          <h2 style="margin:0 0 5px">Auction Radar</h2>
+          <div class="muted" style="font-size:12px">RealEstateAPI discovery + CRM scoring. County records remain the verification source of truth.</div>
+        </div>
+        <div id="reapiStatus" class="api-status api-offline">Backend not checked</div>
+      </div>
+
+      <div class="radar-grid" style="margin-top:14px">
+        <div>
+          <label>States</label>
+          <input id="radarStates" value="CA, FL, NV, OH, GA, SC" placeholder="CA, FL, NV">
+        </div>
+        <div>
+          <label>Future window</label>
+          <select id="radarDays">
+            <option value="30">Next 30 days</option>
+            <option value="60">Next 60 days</option>
+            <option value="90" selected>Next 90 days</option>
+            <option value="180">Next 180 days</option>
+          </select>
+        </div>
+        <div>
+          <label>Min. estimated equity</label>
+          <input id="radarMinEquity" type="number" value="100000" min="0" step="10000">
+        </div>
+        <div>
+          <label>Property type</label>
+          <select id="radarPropertyType">
+            <option value="SFR" selected>SFR first</option>
+            <option value="">All property types</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+        <button class="primary glass-action" onclick="runAuctionRadar()">Scan Upcoming Auctions</button>
+        <button class="glass-action" onclick="checkREAPIStatus()">Check API Connection</button>
+        <span id="radarSummary" class="muted" style="font-size:12px"></span>
+      </div>
+
+      <div id="radarResults" style="margin-top:14px">
+        <div class="empty">Connect the backend and run a scan to populate API-discovered auction candidates.</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel"><h2>High-Equity Watchlist</h2><div id="auctionWatchlist"></div></div>
+      <div class="panel"><h2>Workflow</h2>
+        <div class="state-note">
+          <strong>Upcoming → Researching → Auction Imminent → Sold / Awaiting Final Report → Surplus Confirmed → Qualified</strong>
+          <p>Do not contact an owner as though surplus exists before the auction. Confirm sale result and actual excess first.</p>
+        </div>
+      </div>
+    </div>
+    <div class="panel workq" style="margin-top:14px">
+      <h2>Upcoming Auction Research Queue</h2>
+      <div class="muted" style="font-size:12px;margin:-6px 0 12px">2026 sales first; high-equity residential candidates prioritized</div>
+      <div class="tablewrap"><table class="leads-table">
+        <thead><tr><th>Score</th><th>Owner / Property</th><th>State / County</th><th>Auction</th><th>Opening bid</th><th>Est. value</th><th>Projected surplus</th><th>Countdown</th><th>Status</th><th>Next action</th></tr></thead>
+        <tbody id="auctionRows">
+  <tr><td><strong>90%</strong></td><td><strong>John P. Love Jr.</strong><div class="muted">15873 Bitney Springs Rd, Nevada City, CA 95959</div><div class="muted">APN 030-190-032-000</div></td><td>California<div class="muted">Nevada County</div></td><td>2026-11-05</td><td class="money">$47,910.35</td><td class="money">$812,587</td><td class="money">$764,676.65</td><td>56 days</td><td>Researching</td><td>Pull Recorder vesting deed and current lien/title chain; verify redemption and bankruptcy status.</td></tr>
+  <tr><td><strong>82%</strong></td><td><strong>David J. O'Leary</strong><div class="muted">11006 Dawn Ln, Grass Valley, CA 95949</div><div class="muted">APN 025-200-015-000</div></td><td>California<div class="muted">Nevada County</div></td><td>2026-11-05</td><td class="money">$59,091.69</td><td class="money">$489,500</td><td class="money">$430,408.31</td><td>56 days</td><td>Researching</td><td>Verify vesting, liens/easements, redemption status and current market support.</td></tr>
+  <tr><td><strong>58%</strong></td><td><strong>Darlene Sims / James Sims</strong><div class="muted">Property details pending active-case pull</div><div class="muted">Case 2025TD000222</div></td><td>Florida<div class="muted">Manatee County</div></td><td>2026-12-08</td><td class="money">Pending</td><td class="money">Pending</td><td class="money">Pending</td><td>89 days</td><td>Researching</td><td>Pull active tax-deed file and Property Appraiser record before assigning a projected surplus.</td></tr>
+  </tbody>
+      </table></div>
+    </div>
+  </section>
+</main>
+</div>
+
+
+
+<div class="modal" id="leadCommModal">
+  <div class="dialog" style="max-width:760px">
+    <div class="modal-head">
+      <div>
+        <h2 id="commLeadName">Lead</h2>
+        <div class="muted" id="commLeadMeta"></div>
+      </div>
+      <button class="icon-btn" onclick="closeLeadComm()">✕</button>
+    </div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="panel glass-panel">
+        <h2>Lead Profile</h2>
+        <div id="commLeadInfo"></div>
+      </div>
+      <div class="panel glass-panel">
+        <h2>Contact Actions</h2>
+        <label>Phone number</label>
+        <input id="commPhone" type="tel" placeholder="Enter verified phone number">
+        <div class="glass-action-wrap">
+          <button class="primary glass-action" onclick="callCurrentLead()">Call Lead</button>
+          <button class="glass-action" onclick="focusMessageBox()">Message Lead</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:10px">
+          Only use verified contact information and comply with applicable consent, DNC, TCPA, state solicitation, and attorney/claims-recovery rules before outreach.
+        </div>
+      </div>
+    </div>
+    <div class="panel glass-panel" style="margin-top:14px">
+      <h2>Text Message</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:8px">Draft and launch an SMS from the CRM. Sending opens your device's messaging handler unless a messaging provider is connected.</div>
+      <textarea id="commMessage" rows="6" placeholder="Write a compliant outreach message..."></textarea>
+      <div style="display:flex;justify-content:space-between;gap:12px;margin-top:10px;align-items:center;flex-wrap:wrap">
+        <div class="muted" id="commCharCount">0 characters</div>
+        <div class="glass-action-wrap" style="margin-top:0">
+          <button class="glass-action" onclick="saveCommDraft()">Save Draft</button>
+          <button class="primary glass-action" onclick="sendCurrentLeadSMS()">Send SMS</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel glass-panel" style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px">
+        <h2 style="margin:0">Message History</h2>
+        <span class="muted" style="font-size:11px">Stored with this lead</span>
+      </div>
+      <div id="commLog" class="message-thread">
+        <div class="muted">No communication activity logged yet.</div>
+      </div>
+      <div style="margin-top:12px">
+        <label>Log an inbound reply or call note</label>
+        <textarea id="commInboundNote" rows="2" placeholder="Paste a reply or note what happened on the call..."></textarea>
+        <div class="glass-action-wrap" style="display:inline-flex">
+          <button class="glass-action" onclick="logInboundReply()">Add to history</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="cloudModal"><div class="dialog" style="width:min(620px,100%)">
+  <h2>Cloud workspace</h2>
+  <p style="color:var(--muted);line-height:1.55;margin-top:-4px">
+    This CRM now connects through the private backend. Database credentials stay on the server instead of being stored in the browser.
+  </p>
+  <div class="formgrid">
+    <div class="field full"><label>Email</label><input id="sbEmail" type="email" autocomplete="email" placeholder="you@company.com"></div>
+    <div class="field full"><label>Password</label><input id="sbPassword" type="password" autocomplete="current-password" placeholder="Workspace password"></div>
+  </div>
+  <div class="statusline" style="margin-top:14px"><span class="dot"></span><span id="cloudMessage">Checking cloud backend…</span></div>
+  <div class="modalactions">
+    <button class="btn danger" id="disconnectCloudBtn" type="button">Sign out</button>
+    <div class="right">
+      <button class="btn" id="closeCloudBtn" type="button">Close</button>
+      <button class="btn" id="signupCloudBtn" type="button">Create account</button>
+      <button class="btn primary" id="loginCloudBtn" type="button">Sign in & sync</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="modal" id="modal"><div class="dialog">
+  <h2 id="modalTitle">Lead</h2>
+  <form id="leadForm">
+    <input type="hidden" id="leadId">
+    <div class="formgrid">
+      <div class="field"><label>Priority</label><select id="priority"><option>A+</option><option>A</option><option>B</option><option>C</option><option>D</option></select></div>
+      <div class="field"><label>Pipeline stage</label><select id="stage"></select></div><div class="field"><label>State</label><select id="state"><option>California</option><option>Florida</option><option>Nevada</option><option>Ohio</option><option>Georgia</option><option>South Carolina</option><option>Texas</option></select></div><div class="field"><label>County</label><input id="county" placeholder="County"></div>
+      <div class="field"><label>Lead / former owner</label><input id="name" required></div>
+      <div class="field"><label>APN</label>
