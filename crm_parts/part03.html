@@ -1,0 +1,285 @@
+<input id="apn"></div>
+      <div class="field full"><label>Property address</label><input id="address"></div>
+      <div class="field"><label>Excess proceeds</label><input id="excess" type="number" min="0" step="0.01"></div><div class="field"><label>Modeled closing probability</label><input id="closingProbability" type="number" min="0" max="100" step="1"></div>
+      <div class="field"><label>Property type</label><input id="propertyType" placeholder="SFR, condo, commercial…"></div>
+      <div class="field"><label>Ownership type</label><input id="ownershipType" placeholder="Individual, trust, estate…"></div>
+      <div class="field"><label>Contact status</label><select id="contactStatus"><option>Not contacted</option><option>Attempted</option><option>Reached</option><option>Interested</option><option>Not interested</option><option>Do not contact</option></select></div>
+      <div class="field full"><label>Next action</label><input id="nextAction"></div>
+      <div class="field full"><label>Notes</label><textarea id="notes"></textarea></div>
+      <div class="field full"><label>Verification checklist</label><div class="checkgrid" id="checks"></div></div>
+    </div>
+    <div class="modalactions"><button type="button" class="btn danger" id="deleteBtn">Delete</button><div class="right"><button type="button" class="btn" id="cancelBtn">Cancel</button><button class="btn primary" type="submit">Save lead</button></div></div>
+  </form>
+</div></div>
+
+<script>
+
+let currentCommLeadId = null;
+
+function getLeadById(id){
+  return leads.find(l=>String(l.id)===String(id));
+}
+function ensureCommState(lead){
+  if(!lead.commLog) lead.commLog=[];
+  if(!lead.phone) lead.phone="";
+  if(!lead.smsDraft) lead.smsDraft="";
+}
+function openLeadComm(id){
+  const lead=getLeadById(id); if(!lead) return;
+  currentCommLeadId=id; ensureCommState(lead);
+  document.getElementById('commLeadName').textContent=lead.name||'Lead';
+  document.getElementById('commLeadMeta').textContent=`${lead.stage||'New Lead'} · ${lead.county||''}${lead.county&&lead.state?', ':''}${lead.state||''}`;
+  document.getElementById('commPhone').value=lead.phone||'';
+  document.getElementById('commMessage').value=lead.smsDraft||'';
+  const inbound=document.getElementById('commInboundNote'); if(inbound) inbound.value='';
+  const info=[
+    ['Stage',lead.stage||'—'],
+    ['Priority',lead.priority||'—'],
+    ['Closing Probability',lead.closingProbability!=null?`${Math.round(lead.closingProbability)}%`:'—'],
+    ['Expected Opportunity',lead.expectedOpportunityValue?fmt(lead.expectedOpportunityValue):(lead.excess&&lead.closingProbability?fmt(lead.excess*lead.closingProbability/100):'—')],
+    ['Excess Proceeds',lead.excess?fmt(lead.excess):'—'],
+    ['Property',lead.address||'—'],
+    ['APN / Parcel',lead.apn||'—'],
+    ['Property Type',lead.propertyType||'—'],
+    ['Ownership',lead.ownershipType||'—'],
+    ['Jurisdiction',`${lead.county||'—'}${lead.state?', '+lead.state:''}`],
+    ['Contact Status',lead.contactStatus||'Not contacted'],
+    ['Next Action',lead.nextAction||'—'],
+    ['Notes',lead.notes||'—']
+  ];
+  document.getElementById('commLeadInfo').innerHTML=`<div class="profile-grid">`+info.map(([k,v])=>`<div class="profile-item"><div class="profile-label">${esc(k)}</div><div class="profile-value">${esc(String(v))}</div></div>`).join('')+`</div>`;
+  renderCommLog(lead);
+  updateCharCount();
+  document.getElementById('leadCommModal').classList.add('open');
+}
+function closeLeadComm(){ document.getElementById('leadCommModal').classList.remove('open'); }
+function persistLeadComm(lead){
+  localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+}
+function updateCharCount(){
+  const el=document.getElementById('commMessage');
+  const c=document.getElementById('commCharCount');
+  if(el&&c)c.textContent=`${el.value.length} characters`;
+}
+function focusMessageBox(){ document.getElementById('commMessage').focus(); }
+function saveCommDraft(){
+  const lead=getLeadById(currentCommLeadId); if(!lead)return;
+  ensureCommState(lead);
+  lead.phone=document.getElementById('commPhone').value.trim();
+  lead.smsDraft=document.getElementById('commMessage').value;
+  persistLeadComm(lead); renderCommunications();
+}
+function logComm(type,detail){
+  const lead=getLeadById(currentCommLeadId); if(!lead)return;
+  ensureCommState(lead);
+  lead.commLog.unshift({type,detail,at:new Date().toISOString()});
+  persistLeadComm(lead); renderCommLog(lead); renderCommunications();
+}
+function renderCommLog(lead){
+  const el=document.getElementById('commLog'); if(!el)return;
+  ensureCommState(lead);
+  if(!lead.commLog.length){el.innerHTML='<div class="muted" style="padding:18px;text-align:center">No message or call history yet.</div>';return;}
+  const items=[...lead.commLog].sort((a,b)=>new Date(a.at)-new Date(b.at));
+  el.innerHTML=items.map(x=>{
+    const inbound=x.type==='Inbound reply'||x.type==='Inbound note';
+    const call=x.type==='Call launched'||x.type==='Call note';
+    const cls=inbound?'msg inbound':call?'msg system':'msg outbound';
+    const label=inbound?'Lead':call?'Call activity':'You';
+    return `<div class="${cls}">
+      <div class="msg-label">${esc(label)} · ${esc(new Date(x.at).toLocaleString())}</div>
+      <div class="msg-body">${esc(x.detail||x.type||'')}</div>
+    </div>`;
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function logInboundReply(){
+  const lead=getLeadById(currentCommLeadId); if(!lead)return;
+  const el=document.getElementById('commInboundNote');
+  const note=(el?.value||'').trim();
+  if(!note)return;
+  ensureCommState(lead);
+  lead.commLog.push({type:'Inbound reply',detail:note,at:new Date().toISOString()});
+  lead.contactStatus='Responded';
+  if(el)el.value='';
+  persistLeadComm(lead);
+  renderCommLog(lead);
+  renderCommunications();
+}
+
+function callCurrentLead(){
+  const lead=getLeadById(currentCommLeadId); if(!lead)return;
+  const phone=document.getElementById('commPhone').value.trim();
+  if(!phone){alert('Enter a verified phone number first.');return;}
+  lead.phone=phone; persistLeadComm(lead);
+  logComm('Call launched',phone);
+  window.location.href=`tel:${phone.replace(/[^0-9+]/g,'')}`;
+}
+function sendCurrentLeadSMS(){
+  const lead=getLeadById(currentCommLeadId); if(!lead)return;
+  const phone=document.getElementById('commPhone').value.trim();
+  const msg=document.getElementById('commMessage').value.trim();
+  if(!phone){alert('Enter a verified phone number first.');return;}
+  if(!msg){alert('Write a message first.');return;}
+  lead.phone=phone; lead.smsDraft=msg; persistLeadComm(lead);
+  logComm('Outbound SMS',msg);
+  const p=phone.replace(/[^0-9+]/g,'');
+  window.location.href=`sms:${p}?&body=${encodeURIComponent(msg)}`;
+}
+document.addEventListener('input',e=>{
+  if(e.target && e.target.id==='commMessage') updateCharCount();
+});
+
+
+const upcomingAuctions = [
+  {
+    id:"nevadacounty-030190032000",
+    owner:"John P. Love Jr.",
+    state:"California", county:"Nevada County",
+    caseNo:"2026 County Tax Auction",
+    parcel:"030-190-032-000",
+    address:"15873 Bitney Springs Rd, Nevada City, CA 95959",
+    auctionDate:"2026-11-05",
+    openingBid:47910.35,
+    estimatedValue:812587,
+    projectedSurplus:764676.65,
+    propertyType:"Single-family residence",
+    ownershipType:"Individual / assessed owner",
+    status:"Researching",
+    score:90,
+    source:"Nevada County Treasurer-Tax Collector 2026 Auction Property List; Redfin current estimate",
+    nextAction:"Pull Recorder vesting deed and current lien/title chain; verify John P. Love Jr. is still the entitled pre-sale owner and check redemption/bankruptcy before auction.",
+    notes:"County minimum bid $47,910.35. Redfin estimate $812,587; Realtor estimate range higher. Projected surplus is a screening estimate only and assumes competitive bidding near market value; actual excess cannot exist until sale closes."
+  },
+  {
+    id:"nevadacounty-025200015000",
+    owner:"David J. O'Leary",
+    state:"California", county:"Nevada County",
+    caseNo:"2026 County Tax Auction",
+    parcel:"025-200-015-000",
+    address:"11006 Dawn Ln, Grass Valley, CA 95949",
+    auctionDate:"2026-11-05",
+    openingBid:59091.69,
+    estimatedValue:489500,
+    projectedSurplus:430408.31,
+    propertyType:"128.32-acre agricultural/recreational land",
+    ownershipType:"Individual / assessed owner",
+    status:"Researching",
+    score:82,
+    source:"Nevada County Treasurer-Tax Collector 2026 Auction Property List; active MLS listing",
+    nextAction:"Verify current vesting deed, liens/easements, redemption status and whether the active $489,500 listing remains market-supported immediately before auction.",
+    notes:"County minimum bid $59,091.69. Property was actively listed in 2026 at $489,500. Large apparent equity cushion, but vacant/agricultural land has wider sale-price uncertainty than SFR."
+  },
+  {
+    id:"manatee-2025td000222",
+    owner:"Darlene Sims / James Sims",
+    state:"Florida", county:"Manatee County",
+    caseNo:"2025TD000222",
+    parcel:"Pending file pull",
+    address:"Pending active-case file pull",
+    auctionDate:"2026-12-08",
+    openingBid:null, estimatedValue:null, projectedSurplus:null,
+    propertyType:"Residential / verify",
+    ownershipType:"Multiple individuals",
+    status:"Researching",
+    score:58,
+    source:"Manatee County Clerk — current tax deed data",
+    nextAction:"Pull active case file and Property Appraiser record; capture parcel, address, opening bid, assessed/market indicators, title search, liens and redemption status.",
+    notes:"The Manatee Clerk's live page displays this case with a future 12/08/2026 sale date. Any displayed dollar figure is not treated as confirmed surplus before sale."
+  }
+];
+
+const UPCOMING_STORAGE_KEY="surplusCRM_upcoming_v1";
+try{
+  const savedUpcoming=JSON.parse(localStorage.getItem(UPCOMING_STORAGE_KEY)||"[]");
+  if(Array.isArray(savedUpcoming)){
+    savedUpcoming.forEach(x=>{
+      if(x && x.id && !upcomingAuctions.some(y=>String(y.id)===String(x.id))) upcomingAuctions.push(x);
+    });
+  }
+}catch(e){ console.warn("Could not load saved upcoming auction candidates",e); }
+
+function saveUpcomingAuctions(){
+  const manualSeedIds=new Set(["nevadacounty-030190032000","nevadacounty-025200015000","manatee-2025td000222"]);
+  const imported=upcomingAuctions.filter(x=>!manualSeedIds.has(String(x.id)));
+  localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(imported));
+  if(typeof cloudReady==='function'&&cloudReady()) cloudSyncUpcoming().catch(e=>setCloudUI(e.message));
+}
+
+function daysUntil(dateStr){
+ const today=new Date(); today.setHours(0,0,0,0);
+ const d=new Date(dateStr+"T00:00:00");
+ return Math.ceil((d-today)/86400000);
+}
+function moneyMaybe(v){return v==null?"Pending":fmt(v)}
+function showUpcoming(){
+ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+ const v=document.getElementById('upcoming'); if(v)v.classList.add('active');
+ document.querySelectorAll('.navitem').forEach(n=>n.classList.remove('active'));
+ const btn=[...document.querySelectorAll('.nav button')].find(n=>n.dataset.view==="upcoming"); if(btn)btn.classList.add('active');
+ renderUpcoming();
+}
+function renderUpcoming(){
+ const rows=[...upcomingAuctions].sort((a,b)=>((b.projectedSurplus||0)*b.score)-((a.projectedSurplus||0)*a.score)||b.score-a.score);
+ const imminent=rows.filter(x=>{const d=daysUntil(x.auctionDate);return d>=0&&d<=30}).length;
+ const highEq=rows.filter(x=>(x.projectedSurplus||0)>=100000).length;
+ const awaiting=rows.filter(x=>x.status==="Sold / Awaiting Final Report").length;
+ const k=document.getElementById('auctionKpis');
+ if(k)k.innerHTML=[
+  ["Upcoming Auctions",rows.length,"researched watchlist"],
+  ["High-Equity Candidates",highEq,"projected $100K+ surplus"],
+  ["Auctions ≤30 Days",imminent,"imminent"],
+  ["Awaiting Confirmation",awaiting,"sold / final report pending"]
+ ].map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");
+ const tbody=document.getElementById('auctionRows');
+ if(tbody)tbody.innerHTML=rows.length?rows.map(x=>{
+   const d=daysUntil(x.auctionDate);
+   const cd=d<0?"Passed":d===0?"Today":`${d} days`;
+   return `<tr><td><strong>${x.score}%</strong></td><td><strong>${esc(x.owner)}</strong><div class="muted">${esc(x.address||"")}</div><div class="muted">${esc(x.caseNo||"")}</div>${x.dataSource?`<span class="source-chip">${esc(x.dataSource)} · verify county</span>`:""}</td><td>${esc(x.state)}<div class="muted">${esc(x.county)}</div></td><td>${esc(x.auctionDate)}</td><td class="money">${moneyMaybe(x.openingBid)}</td><td class="money">${moneyMaybe(x.estimatedValue)}</td><td class="money">${moneyMaybe(x.projectedSurplus)}</td><td>${cd}</td><td>${esc(x.status)}</td><td>${esc(x.nextAction)}</td></tr>`
+ }).join(""):`<tr><td colspan="10"><div class="empty">No upcoming auctions have cleared the pre-sale research gate yet.</div></td></tr>`;
+ const w=document.getElementById('auctionWatchlist');
+ if(w)w.innerHTML=rows.slice(0,5).map(x=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:12px"><strong>${esc(x.owner)}</strong><span class="pill ${x.score>=85?'A':x.score>=70?'B':'C'}">${x.score}%</span></div><div class="muted" style="font-size:12px;margin-top:5px">${esc(x.county)}, ${esc(x.state)} · ${esc(x.auctionDate)} · Projected surplus: ${moneyMaybe(x.projectedSurplus)}</div></div>`).join("");
+}
+
+
+let radarLastResults=[];
+
+function isoDatePlus(days){
+  const d=new Date();
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+function stateName(code){
+  const m={CA:"California",FL:"Florida",NV:"Nevada",OH:"Ohio",GA:"Georgia",SC:"South Carolina",TX:"Texas"};
+  return m[code]||code;
+}
+function nval(v){
+  if(v===null||v===undefined||v==="") return null;
+  const n=Number(String(v).replace(/[$,]/g,""));
+  return Number.isFinite(n)?n:null;
+}
+function auctionRadarScore(c){
+  let score=45;
+  const eq=nval(c.estimatedEquity)||0;
+  const value=nval(c.estimatedValue)||0;
+  const bid=nval(c.openingBid)||0;
+  const cushion=(value&&bid)?Math.max(0,value-bid):eq;
+  if(cushion>=500000)score+=22;
+  else if(cushion>=250000)score+=17;
+  else if(cushion>=100000)score+=12;
+  else if(cushion>=50000)score+=6;
+  const pt=String(c.propertyType||"").toUpperCase();
+  if(pt.includes("SFR")||pt.includes("SINGLE"))score+=10;
+  if(c.individualOwned===true || (!c.corporateOwned && c.ownerName))score+=6;
+  if(c.corporateOwned)score-=10;
+  if(c.death||c.inherited)score-=5;
+  if(c.lien||c.judgment)score-=4;
+  const d=daysUntil(c.auctionDate);
+  if(d>=7&&d<=90)score+=5;
+  else if(d<7)score-=4;
+  return Math.max(20,Math.min(95,Math.round(score)));
+}
+function classifyAuctionRecord(c){
+  const txt=[c.documentType,c.noticeType,c.trusteeFullName,c.typeName].filter(Boolean).join(" ").toLowerCase();
+  if(/tax deed|tax sale|tax foreclosure|treasurer|tax collector/.test(txt)) return "Possible tax-sa
