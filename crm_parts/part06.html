@@ -1,0 +1,174 @@
+contactStatus:"Not contacted",state:"Nevada",county:"Washoe County",source:"Washoe County Treasurer — 2026 Real Estate Tax Excess Proceeds List"},
+    {priority:"A",name:"Timothy B. Murri",apn:"004-382-35",address:"2555 Clear Acre Ln, Reno, NV",excess:91420.22,propertyType:"Condo / residential / verify",ownershipType:"Individual / verify",stage:"County Verified",nextAction:"Verify pre-sale vesting, liens, competing interests, and claimant entitlement",notes:"Washoe County 2026 tax sale. Deed recorded 05/01/2026; claim deadline generally one year from recording. Nevada priority lead.",contactStatus:"Not contacted",state:"Nevada",county:"Washoe County",source:"Washoe County Treasurer — 2026 Real Estate Tax Excess Proceeds List"}
+  ];
+  let changed=false;
+  additions.forEach(a=>{
+    if(!leads.some(l=>l.apn===a.apn && (l.state||"California")===a.state)){
+      a.id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
+      a.checks=Object.fromEntries(CHECKS.map(c=>[c,["County SOLD","Excess ≥ $30K"].includes(c)]));
+      leads.push(a); changed=true;
+    }
+  });
+  if(changed) localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+})();
+
+
+(function loadFloridaLeeBatch(){
+ const batch=[
+ {priority:"A+",name:"Patricia Vingiano",apn:"01-44-23-C2-02465.0400",address:"1317 NE 5th Pl, Cape Coral, FL 33909",excess:177867.97,propertyType:"Residential / verify",ownershipType:"Individual / verify",stage:"County Verified",nextAction:"Pull RealTDM file; verify vesting, liens/claims, title chain, and claimant entitlement",notes:"Lee County Tax Deed 2025001841; sale 12/16/2025. Current official weekly-report balance $177,867.97.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"A+",name:"RNM Realty LLC",apn:"13-45-26-03-00026.0010",address:"2819 51st St SW, Lehigh Acres, FL 33976",excess:112988.91,propertyType:"Residential / verify",ownershipType:"LLC",stage:"County Verified",nextAction:"Pull RealTDM file; verify entity status, vesting, liens/claims, and entitlement",notes:"Lee County Tax Deed 2025001462; sale 12/2/2025. $100K+ official balance; entity queue.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"A+",name:"El Gran Taco Inc",apn:"27-45-27-12-00058.0160",address:"1063 Bell Blvd S, Lehigh Acres, FL 33974",excess:131912.81,propertyType:"Residential / commercial use verify",ownershipType:"Corporation",stage:"County Verified",nextAction:"Pull RealTDM file; verify entity ownership, liens/claims, title chain, and entitlement",notes:"Lee County Tax Deed 2024002754; sale 4/8/2025. $100K+ official balance; entity queue.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"A",name:"Martin West",apn:"30-43-24-C2-01060.0090",address:"1388 Weeping Willow Ct, Cape Coral, FL 33909",excess:80134.16,propertyType:"Residential / verify",ownershipType:"Individual / verify",stage:"County Verified",nextAction:"Pull RealTDM file; verify vesting, pending claims, liens, and claimant entitlement",notes:"Lee County Tax Deed 2025001944; sale 1/13/2026. Current official balance $80,134.16.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"A",name:"Roberta Ann Woodward",apn:"17-47-25-B4-00500.2020",address:"24977 South Seas Blvd, Bonita Springs, FL 34134",excess:54324.47,propertyType:"Residential / verify",ownershipType:"Individual / verify",stage:"County Verified",nextAction:"Pull RealTDM file; verify vesting, liens/claims, and claimant entitlement",notes:"Lee County Tax Deed 2025001761; sale 12/16/2025. Official balance $54,324.47.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"A",name:"Dana Bibas / Christian Bibas",apn:"27-44-23-C3-04380.0170",address:"2022 SW 8th Pl, Cape Coral, FL 33991",excess:59558.93,propertyType:"Residential / verify",ownershipType:"Individuals / verify",stage:"County Verified",nextAction:"Pull RealTDM file; determine exact vesting shares, liens/claims, and entitlement",notes:"Lee County Tax Deed 2025001449; sale 12/2/2025. Official balance $59,558.93.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"B",name:"Ingrid Stobbe Trust",apn:"36-43-24-11-0000A.0460",address:"775 Knotty Pine Cir, North Fort Myers, FL 33917",excess:62565.17,propertyType:"Residential / verify",ownershipType:"Trust",stage:"County Verified",nextAction:"Pull RealTDM and trust vesting; identify trustee/beneficiary authority and competing claims",notes:"Lee County Tax Deed 2024002737; sale 4/8/2025. Official balance $62,565.17; trust complexity.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"B",name:"Myrna Kidd / Estate of Myrna Kidd",apn:"36-43-24-20-0000G.0040",address:"7043 New Post Dr Unit 4, North Fort Myers, FL 33917",excess:55004.69,propertyType:"Residential / verify",ownershipType:"Estate / probate",stage:"County Verified",nextAction:"Pull RealTDM; verify probate status, personal representative/heirs, vesting, and competing claims",notes:"Lee County Tax Deed 2025001936; sale 1/13/2026. Official balance $55,004.69; probate-first.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+ {priority:"B",name:"Arthur F. Clarke et al. / Estate of Catherine H. Clarke",apn:"27-45-27-14-00072.0080",address:"3114 Meadow Rd, Lehigh Acres, FL 33974",excess:51830.20,propertyType:"Residential / verify",ownershipType:"Multiple parties / estate",stage:"County Verified",nextAction:"Pull RealTDM; map all vested interests/heirs and competing claims before outreach",notes:"Lee County Tax Deed 2025002154; sale 2/10/2026. Official balance $51,830.20; multiple-party estate complexity.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"}
+ ];
+ let changed=false;
+ batch.forEach(a=>{
+   if(!leads.some(l=>l.apn===a.apn && (l.state||"California")==="Florida")){
+     a.id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
+     a.contactStatus="Not contacted";
+     a.checks=Object.fromEntries(CHECKS.map(c=>[c,["County SOLD","Excess ≥ $30K"].includes(c)]));
+     leads.push(a); changed=true;
+   }
+ });
+ if(changed)localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+})();
+
+
+function modelClosingProbability(l){
+  let s=50;
+  const amt=Number(l.excess||0);
+  const pt=(l.propertyType||"").toLowerCase();
+  const ot=(l.ownershipType||"").toLowerCase();
+  const st=(l.state||"").toLowerCase();
+  const stage=l.stage||"";
+  if(amt>=500000)s+=10; else if(amt>=250000)s+=8; else if(amt>=100000)s+=6; else if(amt>=50000)s+=3; else if(amt>=30000)s+=1;
+  if(pt.includes("sfr")||pt.includes("residential"))s+=8;
+  if(pt.includes("commercial")||pt.includes("industrial"))s-=8;
+  if(ot.includes("individual") && !ot.includes("multiple"))s+=10;
+  if(ot.includes("trust"))s-=6;
+  if(ot.includes("estate")||ot.includes("probate"))s-=12;
+  if(ot.includes("llc")||ot.includes("corporation")||ot.includes("ira"))s-=8;
+  if(ot.includes("multiple"))s-=7;
+  if(st==="nevada")s+=7;
+  if(st==="florida")s+=5;
+  if(st==="california")s+=2;
+  if(st==="georgia")s-=8;
+  if(st==="south carolina")s-=5;
+  if(st==="texas")s-=20;
+  const stageBoost={"Recorder Research":4,"Claimant Verified":12,"Call Ready":18,"Contacted":10,"Interested":22,"Attorney Review":8,"Claim Filed":28,"Approved":36,"Paid":45}[stage]||0;
+  s+=stageBoost;
+  if(l.checks){
+    if(l.checks["Property type verified"])s+=3;
+    if(l.checks["Vesting deed"])s+=5;
+    if(l.checks["Ownership chain"])s+=5;
+    if(l.checks["Liens / judgments"])s+=4;
+    if(l.checks["Probate checked"])s+=3;
+    if(l.checks["Bankruptcy checked"])s+=4;
+    if(l.checks["Competing parties reviewed"])s+=5;
+    if(l.checks["Claimant qualified"])s+=10;
+    if(l.checks["Contact info verified"])s+=4;
+  }
+  return Math.max(10,Math.min(95,Math.round(s)));
+}
+function gradeFromProbability(p){
+  return p>=80?"A+":p>=68?"A":p>=55?"B":p>=40?"C":"D";
+}
+(function applyNationalScoringV5(){
+  let changed=false;
+  leads.forEach(l=>{
+    if(!l.state) l.state="California";
+    if(!l.county) l.county=l.state==="California"?"San Diego County":"";
+    const p=modelClosingProbability(l);
+    if(l.closingProbability!==p){l.closingProbability=p;changed=true;}
+    const g=gradeFromProbability(p);
+    if(l.priority!==g){l.priority=g;changed=true;}
+    l.expectedOpportunityValue=Math.round((Number(l.excess||0)*p)/100);
+  });
+  if(changed)localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+})();
+
+
+(function loadFloridaNevadaExpansionV6(){
+ const batch=[
+  {name:"Graciela P. Acosta",apn:"35-47-25-B4-00228.0060",address:"27767 New York St, Bonita Springs, FL 34135",excess:147532.78,propertyType:"Residential / verify",ownershipType:"Individual / verify",stage:"County Verified",nextAction:"Pull RealTDM and Official Records; verify vesting, current pending claims, liens, bankruptcy/probate indicators, and claimant entitlement",notes:"Lee County Tax Deed 2023000843; sale 01/09/2024. Still listed on Lee County Clerk's Aug. 3, 2026 current surplus report. High-value individual-owner priority.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+  {name:"Elfi Grafin von Looz / Kurt Gairing",apn:"31-44-24-C4-00825.0230",address:"2909 SE 8th Pl, Cape Coral, FL 33904",excess:65333.91,propertyType:"Residential / verify",ownershipType:"Multiple individuals / verify",stage:"County Verified",nextAction:"Pull RealTDM and Official Records; confirm exact vesting shares, current claims/liens, and entitlement for both named parties",notes:"Lee County Tax Deed 2023000875; sale 01/30/2024. Still listed on Aug. 3, 2026 current surplus report. Two-party ownership reduces modeled close probability.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+  {name:"GSNM Realty LLC",apn:"13-44-26-08-00076.0170",address:"2812 33rd St W, Lehigh Acres, FL 33971",excess:175584.92,propertyType:"Residential / verify",ownershipType:"LLC",stage:"County Verified",nextAction:"Verify LLC status/authorized signer, vesting, pending claims, liens, and claimant entitlement before outreach",notes:"Lee County Tax Deed 2025000545; sale 09/09/2025. $175K+ current official surplus; entity ownership lowers close probability versus individual-owner cases.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"},
+  {name:"Estate of Dolores Lord et al.",apn:"29-47-26-B2-00002.0020",address:"Access undetermined, Bonita Springs, FL",excess:82026.15,propertyType:"Land / verify",ownershipType:"Estate / multiple parties",stage:"County Verified",nextAction:"Probate-first: identify personal representative/heirs, map all vested interests, then check liens/claims and entitlement",notes:"Lee County Tax Deed 2025001675; sale 12/16/2025. Official balance $82,026.15. Multiple-party estate complexity makes this a lower-priority qualified research lead.",state:"Florida",county:"Lee County",source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"}
+ ];
+ let changed=false;
+ batch.forEach(a=>{
+   if(!leads.some(l=>l.apn===a.apn && (l.state||"California")===a.state)){
+     a.id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
+     a.contactStatus="Not contacted";
+     a.checks=Object.fromEntries(CHECKS.map(c=>[c,["County SOLD","Excess ≥ $30K"].includes(c)]));
+     a.closingProbability=modelClosingProbability(a);
+     a.priority=gradeFromProbability(a.closingProbability);
+     a.expectedOpportunityValue=Math.round(a.excess*a.closingProbability/100);
+     leads.push(a); changed=true;
+   }
+ });
+ if(changed)localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+})();
+
+
+(function loadFloridaExpansionV7(){
+ const batch=[
+  {
+   name:"Julius G. Sarna / Adeline M. Sarna",
+   apn:"39952920005",
+   address:"Golden Gate Estates Unit 65, Naples, FL 34120",
+   excess:66102.29,
+   propertyType:"Vacant residential land / verify",
+   ownershipType:"Multiple individuals",
+   stage:"County Verified",
+   nextAction:"Reconfirm current Collier Clerk balance; pull current Property Information Report and Official Records; verify vesting, deaths/probate, liens, claims filed after 11/25/2025, and claimant entitlement",
+   notes:"Collier County TDA 25129; sale 11/17/2025. Official Collier list showed $86,102.29 unclaimed on 11/25/2025 with no claim shown. Current Sept. 6, 2026 public-data compilation estimates $66,102.29 remaining. Collier PIR states bankruptcy: No. Conservative CRM balance uses $66,102.29 pending direct Clerk reconfirmation.",
+   state:"Florida",
+   county:"Collier County",
+   source:"Collier County Clerk — Tax Deed Sales Excess Proceeds List; TDA 25205 PIR"
+  }
+ ];
+ let changed=false;
+ batch.forEach(a=>{
+   if(!leads.some(l=>l.apn===a.apn && (l.state||"California")==="Florida")){
+     a.id=crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
+     a.contactStatus="Not contacted";
+     a.checks=Object.fromEntries(CHECKS.map(c=>[c,["County SOLD","Excess ≥ $30K"].includes(c)]));
+     a.closingProbability=modelClosingProbability(a);
+     a.priority=gradeFromProbability(a.closingProbability);
+     a.expectedOpportunityValue=Math.round(a.excess*a.closingProbability/100);
+     leads.push(a); changed=true;
+   }
+ });
+ if(changed)localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+})();
+
+
+(function loadQualifiedExpansionV8(){
+ const batch=[
+  {
+   name:"Carol Jo Sofko Trust",
+   apn:"03-45-24-05-0000F.0100",
+   address:"1519 Fountain Ave, Fort Myers, FL 33919",
+   excess:142006.08,
+   propertyType:"Residential / verify",
+   ownershipType:"Trust",
+   stage:"County Verified",
+   nextAction:"Pull RealTDM and Official Records; verify trust vesting, current trustee authority, liens/claims, bankruptcy/probate indicators, and claimant entitlement",
+   notes:"Lee County Tax Deed 2025000125; sale 07/29/2025. Official Aug. 3, 2026 surplus balance $142,006.08. High-dollar case, but trust complexity lowers closing probability.",
+   state:"Florida",county:"Lee County",
+   source:"Lee County Clerk — Tax Deed Surplus Weekly Report (Aug. 3, 2026)"
+  },
+  {
+   name:"Crazy Healthy Church / Thomas E. Burchetta",
+   apn:"19-44-24-C2-00784.0510",
+   address:"1403 SE 11th St, Cape Coral, FL 33990",
+   excess:149623.77,
+   propertyType:"Residential / verify",
+   ownershipType:"Corporation / individual mixed",
+   stage:"County Verified",
+   nextAction:"Pull RealTDM and Official Records; determine exact vested owner(s), entity authority, pending claims/liens, and claimant entitlement before outreach",
