@@ -3,7 +3,7 @@ const {test}=require('node:test');const assert=require('node:assert/strict');con
 const uid='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
 function harness(){
  const lead={id:'lead-1',name:'Synthetic owner',stage:'Qualified',qualification_status:'Qualified',compliance_status:'CLEARED',notes:'Original note'};
- const db={leads:[{user_id:uid,record_id:lead.id,payload:lead}],audit:[]};for(const t of ['calendar_events','call_sessions','call_transcripts','ai_summaries','action_proposals','assistant_actions','messaging_campaigns','messages','messaging_consents','contract_evidence','tasks','attorneys','claims'])db[t]=[];
+ const db={leads:[{user_id:uid,record_id:lead.id,payload:lead}],audit:[]};for(const t of ['calendars','calendar_events','call_sessions','call_transcripts','ai_summaries','action_proposals','assistant_actions','messaging_campaigns','messages','messaging_consents','contract_evidence','tasks','attorneys','claims'])db[t]=[];
  let tick=0;
  const headers=()=>({});
  async function fetchJson(raw,o={}){const u=new URL(raw);
@@ -94,3 +94,4 @@ test('sign-in replaces random device seeds with canonical cloud records and keep
  vm.createContext(ctx);vm.runInContext(code,ctx);await ctx.syncFromCloud(false);
  assert.deepEqual(ctx.leads,remote);assert.equal(storage.has('pending'),false);assert.deepEqual(JSON.parse(storage.get('surplusCRM_before_cloud_'+uid)),local);
 });
+test('calendar collections enforce ownership and imports are deduplicated',async()=>{const h=harness();let r=await h.request('POST','calendars',{name:'Team',color:'#5688eb'});assert.equal(r.status,200);const id=r.body.items[0].id;const e={title:'Synthetic event',calendar_id:id,kind:'follow_up',start_at:'2026-10-01T09:00:00Z',end_at:'2026-10-01T10:00:00Z',timezone:'UTC',import_uid:'fixture-1'};assert.equal((await h.request('POST','calendar',e,other)).status,404);r=await h.request('POST','calendar-batch',{events:[e,e]});assert.equal(r.status,200);assert.equal(r.body.imported,1);r=await h.request('POST','calendar-batch',{events:[e]});assert.equal(r.body.imported,0);assert.equal(h.db.calendar_events.length,1);assert.equal(h.lead.notes,'Original note');});

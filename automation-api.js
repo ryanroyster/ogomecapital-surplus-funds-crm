@@ -3,7 +3,7 @@ const D=require('./public/automation-domain');
 const providers=require('./automation-providers');
 const {randomUUID}=require('crypto');
 const {isDeepStrictEqual}=require('util');
-const tables=['calendar_events','call_sessions','call_transcripts','ai_summaries','action_proposals','assistant_actions','messaging_campaigns','messages','messaging_consents','contract_evidence'];
+const tables=['calendars','calendar_events','call_sessions','call_transcripts','ai_summaries','action_proposals','assistant_actions','messaging_campaigns','messages','messaging_consents','contract_evidence'];
 const fail=(message,status=422)=>{throw Object.assign(new Error(message),{status});};
 module.exports=function({cfg,fetchJson,serviceHeaders,requireUser,readBody,json,dbGet}){
  const enc=encodeURIComponent;
@@ -16,7 +16,9 @@ module.exports=function({cfg,fetchJson,serviceHeaders,requireUser,readBody,json,
   return fetchJson(cfg.supabaseUrl()+'/rest/v1/rpc/crm_automation_commit',{method:'POST',headers:serviceHeaders(),body:JSON.stringify({p_user:user,p_writes:writes,p_lead:l?String(l.id):null,p_expected:l,p_patch:patch,p_note:note,p_clearance:clearance,p_sms_phone:phone})});
  }
  async function eventData(user,b,previous){
-  const p={title:b.title,kind:b.kind,start_at:b.start_at,end_at:b.end_at,timezone:b.timezone,status:b.status||'scheduled',notes:String(b.notes||''),attorney_id:b.attorney_id||null,all_day:!!b.all_day};D.event(p);
+  const p={...previous?.payload,calendar_id:b.calendar_id||null,location:String(b.location||''),color:b.color||null,import_uid:b.import_uid||previous?.payload?.import_uid||null,title:b.title,kind:b.kind,start_at:b.start_at,end_at:b.end_at,timezone:b.timezone,status:b.status||'scheduled',notes:String(b.notes||''),attorney_id:b.attorney_id||null,all_day:!!b.all_day};D.event(p);
+  if(p.color&&!/^#[0-9a-f]{6}$/i.test(p.color))fail('Choose a valid color.');
+  if(p.calendar_id){const c=await owned('calendars',user,p.calendar_id);if(c.payload.archived)fail('Calendar is archived.');}
   if(p.attorney_id)await owned('attorneys',user,p.attorney_id);
   if(previous&&previous.lead_record_id!==(b.lead_record_id||null))fail('Event lead cannot be changed; create a new event.');return p;
  }
@@ -195,7 +197,18 @@ module.exports=function({cfg,fetchJson,serviceHeaders,requireUser,readBody,json,
   if(req.method==='POST'||req.method==='PATCH'){
    if(kind==='calls'&&id&&action==='recording'){json(res,200,await uploadRecording(user,id,req));return true;}
    const b=await readBody(req);let result;
-   if(kind==='calendar')result=await saveEvent(user,b,id);
+   if(kind==='calendars'){
+    const old=id?await owned('calendars',user,id):null;if(old&&b.expected_at!==old.updated_at)fail('Calendar changed. Refresh before saving.',409);
+    if(!/^#[0-9a-f]{6}$/i.test(b.color||''))fail('Choose a calendar color.');
+    if(b.archived&&b.confirm!==true)fail('Confirm calendar archival.');
+    result=await commit(user,[write('calendars',{name:D.text(b.name,'Calendar name',100),color:b.color,description:String(b.description||''),archived:!!b.archived},null,old)]);
+   }
+   else if(kind==='calendar-batch'){
+    if(!Array.isArray(b.events)||!b.events.length||b.events.length>200)fail('Provide 1–200 events.');const existing=await get('calendar_events',user),seen=new Set(existing.filter(x=>x.payload.import_uid).map(x=>JSON.stringify([x.payload.calendar_id||null,x.payload.import_uid,x.payload.start_at]))),writes=[];
+    for(const item of b.events){if(item.lead_record_id)await lead(user,item.lead_record_id);const p=await eventData(user,item);const key=JSON.stringify([p.calendar_id,p.import_uid,p.start_at]);if(p.import_uid&&seen.has(key))continue;if(p.import_uid)seen.add(key);writes.push(write('calendar_events',p,item.lead_record_id||null));}
+    result=writes.length?await commit(user,writes):{items:[]};result.imported=writes.length;
+   }
+   else if(kind==='calendar')result=await saveEvent(user,b,id);
    else if(kind==='calls'&&!id)result=await saveCall(user,b);
    else if(kind==='calls'&&action==='consent'){const c=await owned('call_sessions',user,id);if(!['granted','declined','not_recorded'].includes(b.status))fail('Invalid consent state.');if(b.status==='granted'){D.consent({...b,recorded_at:b.recorded_at||new Date().toISOString()});if(b.ack!==true)fail('Acknowledge jurisdiction review.');}result=await commit(user,[write('call_sessions',{...c.payload,consent:{status:b.status,jurisdiction:String(b.jurisdiction||''),basis:String(b.basis||''),recorded_at:b.recorded_at||new Date().toISOString()},jurisdiction_warning_acknowledged:!!b.ack},c.lead_record_id,c)]);}
    else if(kind==='calls'&&action==='transcript')result=await transcript(user,id,b);
