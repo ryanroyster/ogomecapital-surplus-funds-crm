@@ -69,3 +69,11 @@ test('new random IDs cannot reinsert an existing claim, while distinct case numb
  assert.equal(h.db.leads.length,1);
  assert.equal((await h.request('PUT','/api/cloud/leads',{leads:[{...lead,id:'different-case',caseNumber:'2027-2'}]})).status,200);
 });
+
+test('legacy partial uploads cannot hide a stale automation revision through payload merging',async()=>{
+ const payload={id:'with-call',stage:'Interested',notes:'Original notes plus new call summary',_automation_revision:1};
+ const h=harness({leads:[{user_id:uid,record_id:payload.id,payload}]});
+ assert.equal((await h.request('PUT','/api/cloud/leads',{leads:[{id:payload.id,notes:'Old device notes'}]})).status,409);
+ assert.equal(h.db.leads[0].payload.notes,payload.notes);
+ assert.equal((await h.request('PUT','/api/cloud/leads',{leads:[{...payload,nextAction:'Verified new edit'}]})).status,200);
+});
