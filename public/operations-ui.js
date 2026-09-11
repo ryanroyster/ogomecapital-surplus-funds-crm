@@ -55,6 +55,6 @@ window.syncOperations=async function(){
 const oldDisconnect=disconnectCloud;disconnectCloud=function(){oldDisconnect();loadCache();renderKPIs();if(activeLead)renderLeadOperations(activeLead);};
 // Defaults extend payloads only; no seed data clears compliance.
 leads=leads.map(D.compliance);loadCache();renderAll();
-checkCloudBackend().then(async()=>{if(cloudReady()){if(localStorage.getItem(leadPendingKey()))await syncToCloud();await syncFromCloud(true);}}).catch(showError);
+checkCloudBackend().then(async()=>{if(cloudReady()){await syncFromCloud(false);}}).catch(showError);
 window.addEventListener('online',()=>{(async()=>{if(cloudReady()&&localStorage.getItem(leadPendingKey()))await syncToCloud();await syncOperations();})().catch(showError);});
 })();

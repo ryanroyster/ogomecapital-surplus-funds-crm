@@ -18,6 +18,9 @@ module.exports=function({cfg,fetchJson,serviceHeaders,requireUser,readBody,json,
   if(!Array.isArray(items)||items.some(x=>!x||typeof x!=='object'||Array.isArray(x)||!['string','number'].includes(typeof x.id)||!String(x.id).trim()))fail('Leads must be an array with stable IDs.');
   if(new Set(items.map(x=>String(x.id))).size!==items.length)fail('Duplicate lead IDs.');
   const existing=await dbGet('crm_leads',user),map=new Map(existing.map(l=>[String(l.id),l]));
+  const identity=l=>l.apn&&l.county&&l.state?JSON.stringify([l.state,l.county,l.apn,l.name,l.excess,l.source,l.caseNumber,l.case_number,l.saleDate,l.sale_date].map(x=>String(x??'').trim().toLowerCase())):null;
+  const identities=new Map(existing.map(l=>[identity(l),String(l.id)]).filter(([k])=>k));
+  for(const item of items){const key=identity(item);if(key&&identities.has(key)&&identities.get(key)!==String(item.id))fail('A matching claim already exists. Refresh the CRM to download cloud leads; the device backup preserves unsynced edits.',409);if(key)identities.set(key,String(item.id));}
   const changed=[];
   for(const item of items){const previous=map.get(String(item.id)),next=domain.compliance({...previous,...item});try{domain.validate(next,previous);}catch(e){fail(e.message,422);}if(JSON.stringify(previous)!==JSON.stringify(next))changed.push({previous,next});}
   if(changed.length)await fetchJson(cfg.supabaseUrl()+'/rest/v1/crm_leads?on_conflict=user_id,record_id',{method:'POST',headers:serviceHeaders({'Prefer':'resolution=merge-duplicates,return=minimal'}),body:JSON.stringify(changed.map(({next})=>({user_id:user,record_id:String(next.id),payload:next,updated_at:new Date().toISOString()})))});

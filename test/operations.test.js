@@ -61,3 +61,11 @@ test('lead upload queues concurrent edits and keeps failed changes pending',asyn
  const a=vm.runInContext('syncToCloud()',ctx);ctx.leads=[{id:'one',notes:'newer'}];const b=vm.runInContext('syncToCloud()',ctx);release();await Promise.all([a,b]);assert.equal(uploads.length,2);assert.equal(uploads[1].leads[0].notes,'newer');assert.equal(storage.size,0);
  storage.set('surplusCRM_leads_pending_u','true');ctx.cloudRequest=async()=>{throw new Error('offline')};await assert.rejects(vm.runInContext('syncToCloud()',ctx),/offline/);assert.equal(storage.size,1);
 });
+
+test('new random IDs cannot reinsert an existing claim, while distinct case numbers remain separate',async()=>{
+ const lead={id:'original',state:'Florida',county:'Test County',apn:'123',name:'Synthetic owner',excess:50000,source:'Official county',stage:'County Verified'};
+ const h=harness({leads:[{user_id:uid,record_id:lead.id,payload:lead}]});
+ assert.equal((await h.request('PUT','/api/cloud/leads',{leads:[{...lead,id:'duplicate'}]})).status,409);
+ assert.equal(h.db.leads.length,1);
+ assert.equal((await h.request('PUT','/api/cloud/leads',{leads:[{...lead,id:'different-case',caseNumber:'2027-2'}]})).status,200);
+});

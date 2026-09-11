@@ -104,8 +104,7 @@ async function cloudSignIn(){
     cloudSession=d;
     localStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify(d));
     setCloudUI('Signed in. Downloading cloud records…');
-    await syncFromCloud(true);
-    await syncToCloud();
+    await syncFromCloud(false);
     await cloudSyncUpcoming();
     setCloudUI('Cloud connected and synchronized.');
   }catch(e){setCloudUI(e.message)}
@@ -181,18 +180,17 @@ async function uploadLeadChanges(){
 }
 async function syncFromCloud(merge=true){
   if(!cloudReady()) return;
-  if(localStorage.getItem(leadPendingKey()))await syncToCloud();
+  if(merge&&localStorage.getItem(leadPendingKey()))await syncToCloud();
   setCloudUI('Downloading cloud records…');
   const d=await cloudRequest('/api/cloud/leads');
   const remote=Array.isArray(d.leads)?d.leads:[];
-  if(remote.length){
-    if(merge){
-      const map=new Map(leads.map(l=>[String(l.id),l]));
-      remote.forEach(l=>map.set(String(l.id),l));
-      leads=[...map.values()];
-    }else leads=remote;
-    localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+  // Cloud is authoritative at sign-in; preserve the prior device copy for recovery.
+  if(!merge){
+    localStorage.setItem('surplusCRM_before_cloud_'+(cloudSession?.user?.id||'local'),JSON.stringify(leads));
+    localStorage.removeItem(leadPendingKey());
   }
+  leads=remote;
+  localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
   const u=await cloudRequest('/api/cloud/upcoming');
   if(Array.isArray(u.upcoming)&&u.upcoming.length){
     u.upcoming.forEach(x=>{
@@ -253,8 +251,7 @@ async function syncNow(){
     return;
   }
   try{
-    await syncFromCloud(true);
-    await syncToCloud();
+    await syncFromCloud(false);
     await cloudSyncUpcoming();
     setCloudUI('Cloud synchronized.');
   }catch(e){setCloudUI(e.message)}
