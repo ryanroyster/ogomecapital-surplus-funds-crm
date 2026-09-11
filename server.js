@@ -81,15 +81,6 @@ async function dbGet(table,userId){
   const rows=await fetchJson(url,{headers:serviceHeaders()});
   return Array.isArray(rows)?rows.map(r=>r.payload).filter(Boolean):[];
 }
-async function dbReplace(table,userId,items){
-  const del=cfg.supabaseUrl()+`/rest/v1/${table}?user_id=eq.${encodeURIComponent(userId)}`;
-  const dr=await fetch(del,{method:"DELETE",headers:serviceHeaders({"Prefer":"return=minimal"})});
-  if(!dr.ok){const t=await dr.text();const e=new Error(t||"Cloud delete failed");e.status=dr.status;throw e}
-  if(!items.length)return;
-  const now=new Date().toISOString(),rows=items.map((item,i)=>({user_id:userId,record_id:String(item?.id??`record-${i}`),payload:item,updated_at:now}));
-  await fetchJson(cfg.supabaseUrl()+`/rest/v1/${table}`,{method:"POST",headers:serviceHeaders({"Prefer":"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(rows)});
-}
-
 async function dbMergeUpcoming(userId,items){
   if(!Array.isArray(items)||items.some(item=>!item||typeof item!=="object"||Array.isArray(item)||!["string","number"].includes(typeof item.id)||!String(item.id).trim())){
     const e=new Error("Upcoming records must be an array with stable record IDs.");e.status=400;throw e;
@@ -112,6 +103,8 @@ async function reapi(pathname,body){
 }
 function arrayFromSearch(p){if(Array.isArray(p))return p;if(Array.isArray(p?.data))return p.data;if(Array.isArray(p?.data?.data))return p.data.data;if(Array.isArray(p?.results))return p.results;if(Array.isArray(p?.properties))return p.properties;return []}
 function detailObject(p){return p?.data||p?.property||p||{}}
+const operations=require('./operations-api')({cfg,fetchJson,serviceHeaders,requireUser,readBody,json,dbGet});
+
 function pickAuctionInfo(d){const a=d.auctionInfo||{};let h=Array.isArray(d.foreclosureInfo)?d.foreclosureInfo:[];h=[...h].sort((x,y)=>String(y.auctionDate||"").localeCompare(String(x.auctionDate||"")));const f=h.find(x=>x.active)||h[0]||{};return Object.keys(a).length?a:f}
 function normalize(d){
   const a=pickAuctionInfo(d),oi=d.ownerInfo||{};
@@ -128,7 +121,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const u=new URL(req.url,`http://${req.headers.host||"localhost"}`);
 
-    if(req.method==="GET"&&u.pathname==="/api/health")return json(res,200,{ok:true,service:"Ogome Capital Surplus Funds CRM v25",frontend:"preserved-v24-ui",cloudConfigured:supabaseConfigured(),realEstateApiConfigured:!!cfg.reapiKey()});
+    if(req.method==="GET"&&u.pathname==="/api/health")return json(res,200,{ok:true,service:"Ogome Capital Surplus Funds CRM v25",frontend:"preserved-v24-ui",operationsVersion:1,cloudConfigured:supabaseConfigured(),realEstateApiConfigured:!!cfg.reapiKey()});
     if(req.method==="GET"&&u.pathname==="/api/cloud/status")return json(res,200,{ok:true,provider:"Supabase",configured:supabaseConfigured(),architecture:"server-mediated",serviceRoleExposedToBrowser:false});
 
     if(req.method==="POST"&&u.pathname==="/api/auth/login"){
@@ -145,8 +138,7 @@ const server=http.createServer(async(req,res)=>{
       const d=await supabaseAuth("token?grant_type=refresh_token",{refresh_token:b.refresh_token});
       return json(res,200,{access_token:d.access_token,refresh_token:d.refresh_token,expires_in:d.expires_in,user:d.user});
     }
-    if(req.method==="GET"&&u.pathname==="/api/cloud/leads"){const user=await requireUser(req);return json(res,200,{leads:await dbGet("crm_leads",user.id)})}
-    if(req.method==="PUT"&&u.pathname==="/api/cloud/leads"){const user=await requireUser(req),b=await readBody(req),items=Array.isArray(b.leads)?b.leads:[];await dbReplace("crm_leads",user.id,items);return json(res,200,{ok:true,count:items.length})}
+    if(await operations.handle(req,res,u))return;
     if(req.method==="GET"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req);return json(res,200,{upcoming:await dbGet("crm_upcoming",user.id)})}
     if(req.method==="PUT"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req),b=await readBody(req);const count=await dbMergeUpcoming(user.id,b.upcoming);return json(res,200,{ok:true,count})}
 
@@ -167,7 +159,8 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="GET"&&(u.pathname==="/"||u.pathname==="/index.html"))return sendPreservedCRM(res);
-    if(req.method==="GET"){const file=safeStaticPath(u.pathname);if(!file)return json(res,403,{error:"Forbidden"});if(fs.existsSync(file)&&fs.statSync(file).isDirectory())return sendFile(res,path.join(file,"index.html"));return sendFile(res,file)}
+    if(req.method==="GET"&&['/public/operations-domain.js','/public/operations-ui.js'].includes(u.pathname))return sendFile(res,path.join(ROOT,u.pathname.slice(1)));
+
     return json(res,404,{error:"Not found"});
   }catch(e){console.error(e);return json(res,e.status||500,{error:e.message||"Server error"})}
 });

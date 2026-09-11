@@ -1,25 +1,25 @@
-ncludes(q)));document.getElementById('leadRows').innerHTML=xs.map(l=>`<tr><td><span class="pill ${pclass(l.priority)}">${l.priority}</span></td><td><button class="linkbtn" onclick="openLeadComm('${l.id}')">${esc(l.name)}</button></td><td>${esc(l.apn)}</td><td>${esc(l.address)}</td><td class="money">${fmt(l.excess)}</td><td>${esc(l.propertyType)}</td><td>${esc(l.ownershipType)}</td><td>${esc(l.stage)}</td><td>${l.checks?.['Claimant qualified']?'Yes':'No'}</td><td>${esc(l.nextAction)}</td><td><div class="glass-action-wrap" style="display:inline-flex;margin-top:0"><button class="linkbtn glass-action" onclick="openLeadComm('${l.id}')">Message / Call</button><button class="linkbtn glass-action" onclick="editLead('${l.id}')">Edit</button></div></td></tr>`).join('')}
+ncludes(q)));document.getElementById('leadRows').innerHTML=xs.map(l=>`<tr><td><span class="pill ${pclass(l.priority)}">${l.priority}</span></td><td><button class="linkbtn" onclick="openLeadComm('${l.id}')">${esc(l.name)}</button></td><td>${esc(l.apn)}</td><td>${esc(l.address)}</td><td class="money">${fmt(l.excess)}</td><td>${esc(l.propertyType)}</td><td>${esc(l.ownershipType)}</td><td>${esc(CRMOperations.label(l))}</td><td>${l.checks?.['Claimant qualified']?'Yes':'No'}</td><td>${esc(l.nextAction)}</td><td><div class="glass-action-wrap" style="display:inline-flex;margin-top:0"><button class="linkbtn glass-action" onclick="openLeadComm('${l.id}')">Message / Call</button><button class="linkbtn glass-action" onclick="editLead('${l.id}')">Edit</button></div></td></tr>`).join('')}
 
 function renderCommunications(){
   const phoneCount=leads.filter(l=>String(l.phone||'').trim()).length;
   const smsCount=leads.reduce((n,l)=>n+(l.commLog||[]).filter(x=>x.type==='SMS launched'||x.type==='Outbound SMS').length,0);
   const callCount=leads.reduce((n,l)=>n+(l.commLog||[]).filter(x=>x.type==='Call launched').length,0);
   const drafts=leads.filter(l=>String(l.smsDraft||'').trim()).length;
-  const ready=leads.filter(l=>l.stage==='Call Ready').length;
+  const ready=leads.filter(CRMOperations.ready).length;
   const put=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
   put('commKpiPhones',phoneCount);put('commKpiSms',smsCount);put('commKpiCalls',callCount);put('commKpiDrafts',drafts);put('commKpiReady',ready);
 
   const queue=document.getElementById('commOutreachQueue');
   if(queue){
     const xs=[...leads].sort((a,b)=>{
-      const ar=a.stage==='Call Ready'?1:0, br=b.stage==='Call Ready'?1:0;
+      const ar=CRMOperations.ready(a)?1:0, br=CRMOperations.ready(b)?1:0;
       return br-ar || ((+b.excess||0)*(+b.closingProbability||0))-((+a.excess||0)*(+a.closingProbability||0));
     }).slice(0,30);
     queue.innerHTML=xs.map(l=>`<div class="glass-message-row" onclick="openLeadComm('${l.id}')" style="cursor:pointer">
       <div style="display:flex;justify-content:space-between;gap:10px">
         <strong>${esc(l.name)}</strong><span class="pill ${pclass(l.priority)}">${esc(l.priority)}</span>
       </div>
-      <div class="muted" style="font-size:12px;margin-top:5px">${esc(l.stage)} · ${fmt(l.excess)} · ${esc(l.county||'')}${l.county&&l.state?', ':''}${esc(l.state||'')}</div>
+      <div class="muted" style="font-size:12px;margin-top:5px">${esc(CRMOperations.label(l))} · ${fmt(l.excess)} · ${esc(l.county||'')}${l.county&&l.state?', ':''}${esc(l.state||'')}</div>
       <div class="glass-action-wrap" style="display:inline-flex"><button class="linkbtn glass-action" onclick="event.stopPropagation();openLeadComm('${l.id}')">Open messaging</button></div>
     </div>`).join('');
   }
@@ -38,17 +38,17 @@ function renderCommunications(){
 }
 
 function renderAll(){renderDashboard();renderPipeline();renderLeads();renderCommunications()}
-function openModal(l){document.getElementById('modal').classList.add('open');document.getElementById('modalTitle').textContent=l?'Edit lead':'Add lead';document.getElementById('leadId').value=l?.id||'';['priority','stage','state','county','name','apn','address','excess','closingProbability','propertyType','ownershipType','contactStatus','nextAction','notes'].forEach(id=>{const el=document.getElementById(id);el.value=l?.[id]??(id==='priority'?'A':id==='stage'?'New Lead':id==='contactStatus'?'Not contacted':'')});document.getElementById('checks').innerHTML=CHECKS.map(c=>`<label class="check"><input type="checkbox" data-check="${esc(c)}" ${l?.checks?.[c]?'checked':''}> ${esc(c)}</label>`).join('');document.getElementById('deleteBtn').style.visibility=l?'visible':'hidden'}
+function openModal(l){document.getElementById('leadValidation')?.remove();document.getElementById('modal').classList.add('open');document.getElementById('modalTitle').textContent=l?'Edit lead':'Add lead';document.getElementById('leadId').value=l?.id||'';['priority','stage','state','county','name','apn','address','excess','closingProbability','propertyType','ownershipType','contactStatus','nextAction','notes'].forEach(id=>{const el=document.getElementById(id);el.value=l?.[id]??(id==='priority'?'A':id==='stage'?'New Lead':id==='contactStatus'?'Not contacted':'')});document.getElementById('checks').innerHTML=CHECKS.map(c=>`<label class="check"><input type="checkbox" data-check="${esc(c)}" ${l?.checks?.[c]?'checked':''}> ${esc(c)}</label>`).join('');document.getElementById('deleteBtn').style.visibility=l?'visible':'hidden';if(window.openComplianceFields)openComplianceFields(l)}
 function editLead(id){openModal(leads.find(l=>l.id===id))}
 window.editLead=editLead;window.dropLead=dropLead;
 function closeModal(){document.getElementById('modal').classList.remove('open')}
-document.getElementById('leadForm').onsubmit=e=>{e.preventDefault();const id=document.getElementById('leadId').value;const obj={id:id||((crypto.randomUUID&&crypto.randomUUID())||String(Date.now())),priority:priority.value,stage:stage.value,state:state.value,county:county.value.trim(),name:name.value.trim(),apn:apn.value.trim(),address:address.value.trim(),excess:+excess.value||0,closingProbability:+closingProbability.value||0,propertyType:propertyType.value.trim(),ownershipType:ownershipType.value.trim(),contactStatus:contactStatus.value,nextAction:nextAction.value.trim(),notes:notes.value.trim(),checks:{}};document.querySelectorAll('[data-check]').forEach(x=>obj.checks[x.dataset.check]=x.checked);if(!obj.closingProbability)obj.closingProbability=modelClosingProbability(obj);obj.priority=gradeFromProbability(obj.closingProbability);obj.expectedOpportunityValue=Math.round(obj.excess*obj.closingProbability/100);if(id){leads[leads.findIndex(l=>l.id===id)]=obj}else leads.unshift(obj);closeModal();save()};
-document.getElementById('deleteBtn').onclick=()=>{const id=leadId.value;if(id&&confirm('Delete this lead?')){leads=leads.filter(l=>l.id!==id);closeModal();save()}};document.getElementById('cancelBtn').onclick=closeModal;document.getElementById('addLeadBtn').onclick=()=>openModal(null);
+document.getElementById('leadForm').onsubmit=e=>{e.preventDefault();const id=document.getElementById('leadId').value;const previous=leads.find(l=>l.id===id);const obj={...previous,id:id||((crypto.randomUUID&&crypto.randomUUID())||String(Date.now())),priority:priority.value,stage:stage.value,state:state.value,county:county.value.trim(),name:document.getElementById('name').value.trim(),apn:apn.value.trim(),address:address.value.trim(),excess:+excess.value||0,closingProbability:+closingProbability.value||0,propertyType:propertyType.value.trim(),ownershipType:ownershipType.value.trim(),contactStatus:contactStatus.value,nextAction:nextAction.value.trim(),notes:notes.value.trim(),checks:{...(previous?.checks||{})}};Object.assign(obj,window.readComplianceFields?readComplianceFields():CRMOperations.compliance(obj));try{CRMOperations.validate(obj,previous)}catch(err){let message=document.getElementById("leadValidation");if(!message){message=document.createElement("p");message.id="leadValidation";message.setAttribute("role","alert");document.getElementById("leadForm").querySelector(".modalactions").before(message)}message.textContent=err.message;return}document.querySelectorAll('[data-check]').forEach(x=>obj.checks[x.dataset.check]=x.checked);if(!obj.closingProbability)obj.closingProbability=modelClosingProbability(obj);if(!previous||obj.closingProbability!==previous.closingProbability)obj.priority=gradeFromProbability(obj.closingProbability);obj.expectedOpportunityValue=Math.round(obj.excess*obj.closingProbability/100);if(id){leads[leads.findIndex(l=>l.id===id)]=obj}else leads.unshift(obj);closeModal();save()};
+document.getElementById('deleteBtn').onclick=async()=>{const id=leadId.value;if(id&&confirm('Delete this lead?')){try{if(cloudReady()){const result=await cloudRequest('/api/cloud/leads/'+encodeURIComponent(id),{method:'DELETE'});if(result.warning)alert(result.warning);}leads=leads.filter(l=>l.id!==id);closeModal();save()}catch(e){alert(e.message)}}};document.getElementById('cancelBtn').onclick=closeModal;document.getElementById('addLeadBtn').onclick=()=>openModal(null);
 for(const s of STAGES){stage.add(new Option(s,s));stageFilter.add(new Option(s,s))}
 search.oninput=renderLeads;priorityFilter.onchange=renderLeads;stageFilter.onchange=renderLeads;
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));document.getElementById(b.dataset.view).classList.add('active');const map={dashboard:['Command Center','Surplus-funds lead operations and claimant verification.'],pipeline:['Pipeline','Click any lead to open messaging and calling tools; drag and drop to update stage.'],communications:['Communications','Call, text, draft messages, and review outreach activity by lead.'],leads:['Lead Database','Search, filter, edit and qualify every opportunity.'],states:['State Workspaces','Separate lead pipelines and compliance notes by state.'],upcoming:['Upcoming Auctions','Pre-sale intelligence for properties likely to generate meaningful surplus.']};pageTitle.textContent=map[b.dataset.view][0];pageSub.textContent=map[b.dataset.view][1];if(b.dataset.view==='upcoming'){renderUpcoming();checkREAPIStatus();}if(b.dataset.view==='communications')renderCommunications();});
 exportBtn.onclick=()=>download('surplus-crm-backup.json',JSON.stringify(leads,null,2),'application/json');csvBtn.onclick=()=>{const cols=['priority','closingProbability','expectedOpportunityValue','state','county','name','apn','address','excess','propertyType','ownershipType','stage','contactStatus','nextAction','notes'];const q=v=>'"'+String(v??'').replaceAll('"','""')+'"';download('surplus-crm-leads.csv',[cols.join(','),...leads.map(l=>cols.map(c=>q(l[c])).join(','))].join('\n'),'text/csv')};function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-importFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d))throw 0;leads=d;save();alert('CRM backup imported.')}catch{alert('That JSON file is not a valid CRM backup.')}};r.readAsText(f)};
+importFile.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d))throw 0;d.forEach(l=>CRMOperations.validate(CRMOperations.compliance(l),leads.find(x=>x.id===l.id)));leads=d.map(CRMOperations.compliance);save();alert('CRM backup imported.')}catch{alert('That JSON file is not a valid CRM backup.')}};r.readAsText(f)};
 window.addEventListener('click',e=>{if(e.target===modal)closeModal();if(e.target===document.getElementById('leadCommModal'))closeLeadComm()});
 
 // ---------- Production cloud sync through private backend ----------
@@ -157,17 +157,31 @@ async function cloudRequest(path, options={},retry=true){
   if(!r.ok) throw new Error(d.error||'Cloud request failed');
   return d;
 }
+let leadSyncFlight=null,leadSyncAgain=false;
+function leadPendingKey(){return "surplusCRM_leads_pending_"+(cloudSession?.user?.id||"local")}
 async function syncToCloud(){
+  leadSyncAgain=true;
+  if(leadSyncFlight)return leadSyncFlight;
+  leadSyncFlight=uploadLeadChanges().finally(()=>leadSyncFlight=null);
+  return leadSyncFlight;
+}
+async function uploadLeadChanges(){
   if(!cloudReady()) return;
+  do{
+  leadSyncAgain=false;
+  const pendingKey=leadPendingKey();
   setCloudUI('Uploading lead changes…');
-  await cloudRequest('/api/cloud/leads',{
+  const result=await cloudRequest('/api/cloud/leads',{
     method:'PUT',
     body:JSON.stringify({leads})
   });
-  setCloudUI('Lead records synchronized.');
+  if(!leadSyncAgain)localStorage.removeItem(pendingKey);
+  setCloudUI(result.warning||'Lead records synchronized.');
+  }while(leadSyncAgain&&cloudReady());
 }
 async function syncFromCloud(merge=true){
   if(!cloudReady()) return;
+  if(localStorage.getItem(leadPendingKey()))await syncToCloud();
   setCloudUI('Downloading cloud records…');
   const d=await cloudRequest('/api/cloud/leads');
   const remote=Array.isArray(d.leads)?d.leads:[];
@@ -188,6 +202,7 @@ async function syncFromCloud(merge=true){
     });
     localStorage.setItem(UPCOMING_STORAGE_KEY,JSON.stringify(upcomingAuctions));
   }
+  if(window.syncOperations)await syncOperations();
   renderAll();
   if(document.getElementById('upcoming')?.classList.contains('active')) renderUpcoming();
   setCloudUI('Cloud records downloaded.');
@@ -264,6 +279,7 @@ setInterval(()=>{
 },30000);
 
 save=function(){
+  localStorage.setItem(leadPendingKey(),'true');
   localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
   const s=document.getElementById('saveStatus');
   if(s) s.textContent='Saved '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});

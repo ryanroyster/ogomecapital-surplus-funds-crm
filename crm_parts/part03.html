@@ -12,6 +12,7 @@
   </form>
 </div></div>
 
+<script src="/public/operations-domain.js"></script>
 <script>
 
 let currentCommLeadId = null;
@@ -33,7 +34,8 @@ function openLeadComm(id){
   document.getElementById('commMessage').value=lead.smsDraft||'';
   const inbound=document.getElementById('commInboundNote'); if(inbound) inbound.value='';
   const info=[
-    ['Stage',lead.stage||'—'],
+    ['Stage',CRMOperations.label(lead)],
+    ['Compliance Clearance',lead.compliance_status||'NOT_REVIEWED'],
     ['Priority',lead.priority||'—'],
     ['Closing Probability',lead.closingProbability!=null?`${Math.round(lead.closingProbability)}%`:'—'],
     ['Expected Opportunity',lead.expectedOpportunityValue?fmt(lead.expectedOpportunityValue):(lead.excess&&lead.closingProbability?fmt(lead.excess*lead.closingProbability/100):'—')],
@@ -48,13 +50,14 @@ function openLeadComm(id){
     ['Notes',lead.notes||'—']
   ];
   document.getElementById('commLeadInfo').innerHTML=`<div class="profile-grid">`+info.map(([k,v])=>`<div class="profile-item"><div class="profile-label">${esc(k)}</div><div class="profile-value">${esc(String(v))}</div></div>`).join('')+`</div>`;
+  if(window.renderLeadOperations)renderLeadOperations(lead);
   renderCommLog(lead);
   updateCharCount();
   document.getElementById('leadCommModal').classList.add('open');
 }
 function closeLeadComm(){ document.getElementById('leadCommModal').classList.remove('open'); }
 function persistLeadComm(lead){
-  localStorage.setItem('surplusCRM_v1',JSON.stringify(leads));
+  save();
 }
 function updateCharCount(){
   const el=document.getElementById('commMessage');

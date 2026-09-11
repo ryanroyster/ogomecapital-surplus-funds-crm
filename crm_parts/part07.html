@@ -213,15 +213,16 @@ function renderStateWorkspace(){
  stateTabs.querySelectorAll('button').forEach(b=>b.onclick=()=>{activeState=b.dataset.state;renderStateWorkspace()});
  const rows=leads.filter(l=>(l.state||"California")===activeState);
  const total=rows.length,excess=rows.reduce((a,l)=>a+Number(l.excess||0),0);
- const callReady=rows.filter(l=>l.stage==="Call Ready").length, interested=rows.filter(l=>l.stage==="Interested").length, paid=rows.filter(l=>l.stage==="Paid").length;
+ const callReady=rows.filter(CRMOperations.ready).length, interested=rows.filter(l=>l.stage==="Interested").length, paid=rows.filter(l=>l.stage==="Paid").length;
  stateCards.innerHTML=[["Leads",total],["Verified Excess",stateMoney(excess)],["Call Ready",callReady],["Interested",interested],["Paid",paid]]
  .map(x=>`<div class="card"><div class="label">${x[0]}</div><div class="value">${x[1]}</div></div>`).join('');
- const stages=["New Lead","County Verified","Recorder Research","Claimant Verified","Call Ready","Contacted","Interested","Attorney Review","Claim Filed","Approved","Paid","Closed / Lost"];
- const max=Math.max(1,...stages.map(s=>rows.filter(l=>l.stage===s).length));
+ const stages=["New Lead","County Verified","Recorder Research","Claimant Verified","Call Ready","Contacted","Interested","Attorney Review","Claim Filed","Approved","Paid","Closed / Lost","Clearance required (historical)"];
+ const max=Math.max(1,...stages.map(s=>rows.filter(l=>CRMOperations.pipelineStage(l)===s).length));
  statePipelineTitle.textContent=activeState+" Pipeline";
- statePipeline.innerHTML=stages.map(s=>{const c=rows.filter(l=>l.stage===s).length;return `<div class="row"><span>${s}</span><div class="barbg"><div class="bar" style="width:${c/max*100}%"></div></div><b>${c}</b></div>`}).join('');
+ statePipeline.innerHTML=stages.map(s=>{const c=rows.filter(l=>CRMOperations.pipelineStage(l)===s).length;return `<div class="row"><span>${s}</span><div class="barbg"><div class="bar" style="width:${c/max*100}%"></div></div><b>${c}</b></div>`}).join('');
  const rule=MARKET_RULES[activeState];
  stateRules.innerHTML=`<div><span class="market-badge">${rule.tier}</span></div>
+ <div class="rule-row"><strong>Research only — not legal clearance.</strong> Confirm the case, current requirements and counsel review. No state seed clears a lead. Official county verification is authoritative; RealEstateAPI is discovery/enrichment only.</div>
  <div class="rule-row"><strong>Operating note:</strong><br>${rule.note}</div>
  <div class="rule-row"><strong>Claim timing:</strong><br>${rule.deadline}</div>
  <div class="rule-row"><strong>Business model:</strong><br>${rule.model}</div>
