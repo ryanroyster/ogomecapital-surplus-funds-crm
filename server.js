@@ -104,6 +104,8 @@ async function reapi(pathname,body){
 function arrayFromSearch(p){if(Array.isArray(p))return p;if(Array.isArray(p?.data))return p.data;if(Array.isArray(p?.data?.data))return p.data.data;if(Array.isArray(p?.results))return p.results;if(Array.isArray(p?.properties))return p.properties;return []}
 function detailObject(p){return p?.data||p?.property||p||{}}
 const operations=require('./operations-api')({cfg,fetchJson,serviceHeaders,requireUser,readBody,json,dbGet});
+const automation=require('./automation-api')({cfg,fetchJson,serviceHeaders,requireUser,readBody,json,dbGet});
+setInterval(()=>automation.dispatch().catch(()=>console.error('Automation dispatch deferred')),60000).unref();
 
 function pickAuctionInfo(d){const a=d.auctionInfo||{};let h=Array.isArray(d.foreclosureInfo)?d.foreclosureInfo:[];h=[...h].sort((x,y)=>String(y.auctionDate||"").localeCompare(String(x.auctionDate||"")));const f=h.find(x=>x.active)||h[0]||{};return Object.keys(a).length?a:f}
 function normalize(d){
@@ -121,7 +123,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const u=new URL(req.url,`http://${req.headers.host||"localhost"}`);
 
-    if(req.method==="GET"&&u.pathname==="/api/health")return json(res,200,{ok:true,service:"Ogome Capital Surplus Funds CRM v25",frontend:"preserved-v24-ui",operationsVersion:1,cloudConfigured:supabaseConfigured(),realEstateApiConfigured:!!cfg.reapiKey()});
+    if(req.method==="GET"&&u.pathname==="/api/health")return json(res,200,{ok:true,service:"Ogome Capital Surplus Funds CRM v25",frontend:"preserved-v24-ui",operationsVersion:1,automationVersion:1,automationProviders:automation.providers(),cloudConfigured:supabaseConfigured(),realEstateApiConfigured:!!cfg.reapiKey()});
     if(req.method==="GET"&&u.pathname==="/api/cloud/status")return json(res,200,{ok:true,provider:"Supabase",configured:supabaseConfigured(),architecture:"server-mediated",serviceRoleExposedToBrowser:false});
 
     if(req.method==="POST"&&u.pathname==="/api/auth/login"){
@@ -138,6 +140,7 @@ const server=http.createServer(async(req,res)=>{
       const d=await supabaseAuth("token?grant_type=refresh_token",{refresh_token:b.refresh_token});
       return json(res,200,{access_token:d.access_token,refresh_token:d.refresh_token,expires_in:d.expires_in,user:d.user});
     }
+    if(await automation.handle(req,res,u))return;
     if(await operations.handle(req,res,u))return;
     if(req.method==="GET"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req);return json(res,200,{upcoming:await dbGet("crm_upcoming",user.id)})}
     if(req.method==="PUT"&&u.pathname==="/api/cloud/upcoming"){const user=await requireUser(req),b=await readBody(req);const count=await dbMergeUpcoming(user.id,b.upcoming);return json(res,200,{ok:true,count})}
@@ -159,7 +162,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="GET"&&(u.pathname==="/"||u.pathname==="/index.html"))return sendPreservedCRM(res);
-    if(req.method==="GET"&&['/public/operations-domain.js','/public/operations-ui.js'].includes(u.pathname))return sendFile(res,path.join(ROOT,u.pathname.slice(1)));
+    if(req.method==="GET"&&['/public/operations-domain.js','/public/operations-ui.js','/public/automation-domain.js','/public/automation-ui.js','/public/automation.css'].includes(u.pathname))return sendFile(res,path.join(ROOT,u.pathname.slice(1)));
 
     return json(res,404,{error:"Not found"});
   }catch(e){console.error(e);return json(res,e.status||500,{error:e.message||"Server error"})}
