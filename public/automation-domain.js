@@ -1,7 +1,7 @@
 (function(root){
 'use strict';
 const fail=m=>{throw Object.assign(new Error(m),{status:422});};
-const stages=['New Lead','County Verified','Recorder Research','Claimant Verified','Qualified','Call Ready','Contacted','Interested','Signed Contract','Attorney Review','Claim Filed','Approved','Paid','Closed / Lost'];
+const stages=['New Lead','County Verified','Recorder Research','Claimant Verified','Qualified','Call Ready','Contacted','Interested','Docs Sent','Signed Contract','Attorney Review','Claim Filed','Approved','Paid','Closed / Lost'];
 const eventTypes=['appointment','callback','follow_up','claim_deadline','attorney_meeting','task_due'];
 const fields=['phone','email','nextAction','contactStatus','qualification_status'];
 function text(v,name,max=4000){if(typeof v!=='string'||!v.trim()||v.length>max)fail(`${name} is required (maximum ${max} characters).`);return v.trim();}
