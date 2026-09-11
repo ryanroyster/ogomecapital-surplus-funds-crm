@@ -39,7 +39,7 @@ function sendHtml(res,body){
 function sendPreservedCRM(res){
   try{
     for(const p of CRM_PARTS) if(!fs.existsSync(p)) throw new Error(`Missing CRM asset: ${path.basename(p)}`);
-    return sendHtml(res,CRM_PARTS.map(p=>fs.readFileSync(p,"utf8")).join("").replace('<script src="/public/automation-ui.js">','<script src="/public/calendar-domain.js"></script><script src="/public/automation-ui.js">'));
+    return sendHtml(res,CRM_PARTS.map(p=>fs.readFileSync(p,"utf8")).join("").replace('<script src="/public/automation-ui.js">','<link rel="stylesheet" href="/public/lead-colors.css"><script src="/public/lead-colors.js"></script><script src="/public/calendar-domain.js"></script><script src="/public/automation-ui.js">'));
   }catch(e){
     console.error("CRM frontend assembly failed:",e.message);
     return json(res,500,{error:"CRM frontend assembly failed"});
@@ -162,7 +162,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="GET"&&(u.pathname==="/"||u.pathname==="/index.html"))return sendPreservedCRM(res);
-    if(req.method==="GET"&&['/public/operations-domain.js','/public/operations-ui.js','/public/automation-domain.js','/public/automation-ui.js','/public/automation.css','/public/calendar-domain.js'].includes(u.pathname))return sendFile(res,path.join(ROOT,u.pathname.slice(1)));
+    if(req.method==="GET"&&['/public/operations-domain.js','/public/operations-ui.js','/public/automation-domain.js','/public/automation-ui.js','/public/automation.css','/public/calendar-domain.js','/public/lead-colors.js','/public/lead-colors.css'].includes(u.pathname))return sendFile(res,path.join(ROOT,u.pathname.slice(1)));
 
     return json(res,404,{error:"Not found"});
   }catch(e){console.error(e);return json(res,e.status||500,{error:e.message||"Server error"})}

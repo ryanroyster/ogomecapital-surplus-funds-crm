@@ -1,0 +1,18 @@
+/* Match the CRM's existing priority colors, with independent value tiers. */
+.priority-colored{--priority-color:#9ba9bd}
+.priority-colored[data-priority-color=aplus],.grade-aplus{--priority-color:#f69bab}
+.priority-colored[data-priority-color=a],.grade-a{--priority-color:#91ddb3}
+.priority-colored[data-priority-color=b],.grade-b{--priority-color:#edcb7d}
+.priority-colored[data-priority-color=c],.grade-c{--priority-color:#9cbfff}
+.priority-colored[data-priority-color=d],.grade-d{--priority-color:#b6c1d1}
+#kanban .leadcard.priority-colored{border-left:4px solid var(--priority-color);padding-left:12px}
+#stateLeadsBody tr.priority-colored>td:first-child{box-shadow:inset 4px 0 var(--priority-color);padding-left:14px}
+.lead-color-badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;font-weight:600}
+.lead-cue{display:inline-block;max-width:100%;font-size:11px;line-height:1.6;font-weight:650;padding:3px 7px;border:1px solid currentColor;border-radius:7px;font-variant-numeric:tabular-nums}
+.lead-cue[class*=grade-]{color:var(--priority-color);background:rgba(255,255,255,.04)}
+.lead-cue.cue-250{color:#dac2ff;background:rgba(160,114,233,.17)}
+.lead-cue.cue-100{color:#b8d2ff;background:rgba(79,140,255,.15)}
+.lead-cue.cue-50{color:#9be4db;background:rgba(43,164,149,.15)}
+.lead-cue.cue-base,.lead-cue.cue-unknown{color:#c2ccda;background:rgba(140,156,180,.1)}
+.lead-color-legend{margin:0 0 16px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(17,26,43,.45);color:var(--muted);font-size:12px}
+.lead-color-legend summary{cursor:pointer;color:var(--text);font-weight:600}.lead-color-legend>div{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}.lead-color-legend b{min-width:140px}.lead-color-legend p{line-height:1.6;margin-bottom:0}
