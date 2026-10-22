@@ -7,6 +7,7 @@ const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 8787);
 const REAPI_BASE = "https://api.realestateapi.com";
 const CRM_PARTS = Array.from({length:8},(_,i)=>path.join(ROOT,"crm_parts",`part${String(i+1).padStart(2,"0")}.html`));
+const DEMO_FILE = path.join(ROOT,"public","demo.html");
 
 function loadEnvFile() {
   const envPath = path.join(ROOT, ".env");
@@ -39,7 +40,7 @@ function sendHtml(res,body){
 function sendPreservedCRM(res){
   try{
     for(const p of CRM_PARTS) if(!fs.existsSync(p)) throw new Error(`Missing CRM asset: ${path.basename(p)}`);
-    return sendHtml(res,CRM_PARTS.map(p=>fs.readFileSync(p,"utf8")).join("").replace('<script src="/public/operations-ui.js">','<script src="/public/lead-cache.js"></script><script src="/public/operations-ui.js">').replace('<script src="/public/automation-ui.js">','<link rel="stylesheet" href="/public/lead-colors.css"><script src="/public/lead-colors.js"></script><script src="/public/calendar-domain.js"></script><script src="/public/automation-ui.js">').replace('</body>','<link rel="stylesheet" href="/public/ogome-theme.css"><script src="/public/ogome-theme.js"></script><link rel="stylesheet" href="/public/pipeline-theme.css"><script src="/public/pipeline-stages.js"></script><script src="/public/pipeline-theme.js"></script></body>'));
+    return sendHtml(res,CRM_PARTS.map(p=>fs.readFileSync(p,"utf8")).join("").replace('<script src="/public/operations-ui.js">','<script src="/public/lead-cache.js"></script><script src="/public/operations-ui.js">').replace('<script src="/public/automation-ui.js">','<link rel="stylesheet" href="/public/lead-colors.css"><script src="/public/lead-colors.js"></script><script src="/public/calendar-domain.js"></script><script src="/public/automation-ui.js">').replace('</body>','<link rel="stylesheet" href="/public/ogome-theme.css"><script src="/public/ogome-theme.js"></script><link rel="stylesheet" href="/public/pipeline-theme.css"><script src="/public/pipeline-stages.js"></script><script src="/public/pipeline-theme.js"></script><link rel="stylesheet" href="/public/case-profile.css"><script src="/public/case-profile.js"></script></body>'));
   }catch(e){
     console.error("CRM frontend assembly failed:",e.message);
     return json(res,500,{error:"CRM frontend assembly failed"});
@@ -124,6 +125,7 @@ const server=http.createServer(async(req,res)=>{
     const u=new URL(req.url,`http://${req.headers.host||"localhost"}`);
 
     if(req.method==="GET"&&u.pathname==="/api/health")return json(res,200,{ok:true,service:"Ogome Capital Surplus Funds CRM v25",frontend:"preserved-v24-ui",operationsVersion:1,automationVersion:1,automationProviders:automation.providers(),cloudConfigured:supabaseConfigured(),realEstateApiConfigured:!!cfg.reapiKey()});
+    if(req.method==="GET"&&(u.pathname==="/demo"||u.pathname==="/demo/"))return sendFile(res,DEMO_FILE);
     if(req.method==="GET"&&u.pathname==="/api/cloud/status")return json(res,200,{ok:true,provider:"Supabase",configured:supabaseConfigured(),architecture:"server-mediated",serviceRoleExposedToBrowser:false});
 
     if(req.method==="POST"&&u.pathname==="/api/auth/login"){
@@ -162,7 +164,7 @@ const server=http.createServer(async(req,res)=>{
     }
 
     if(req.method==="GET"&&(u.pathname==="/"||u.pathname==="/index.html"))return sendPreservedCRM(res);
-    if(req.method==="GET"&&['/public/operations-domain.js','/public/operations-ui.js','/public/automation-domain.js','/public/automation-ui.js','/public/automation.css','/public/calendar-domain.js','/public/lead-colors.js','/public/lead-colors.css','/public/ogome-theme.js','/public/ogome-theme.css','/public/lead-cache.js','/public/pipeline-theme.js','/public/pipeline-theme.css','/public/pipeline-stages.js'].includes(u.pathname))return sendFile(res,path.join(ROOT,u.pathname.slice(1)));
+    if(req.method==="GET"&&['/public/operations-domain.js','/public/operations-ui.js','/public/automation-domain.js','/public/automation-ui.js','/public/automation.css','/public/calendar-domain.js','/public/lead-colors.js','/public/lead-colors.css','/public/ogome-theme.js','/public/ogome-theme.css','/public/lead-cache.js','/public/pipeline-theme.js','/public/pipeline-theme.css','/public/pipeline-stages.js','/public/case-profile.js','/public/case-profile.css','/public/demo.css','/public/demo.js'].includes(u.pathname))return sendFile(res,path.join(ROOT,u.pathname.slice(1)));
 
     return json(res,404,{error:"Not found"});
   }catch(e){console.error(e);return json(res,e.status||500,{error:e.message||"Server error"})}
